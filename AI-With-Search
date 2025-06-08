@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebLLM Secure Chatbot</title>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.46/lib/index.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-container {
+            width: 90%;
+            max-width: 800px;
+            height: 90vh;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: linear-gradient(90deg, #4f46e5, #7c3aed);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .chat-header h1 {
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+
+        .status {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .loading-container {
+            padding: 20px;
+            text-align: center;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            overflow-y: auto;
+        }
+
+        /* Removed spinner in favor of progress bar */
+
+        .progress-bar {
+            width: 100%;
+            max-width: 400px;
+            height: 12px;
+            background: #e5e7eb;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 20px 0;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4f46e5, #7c3aed);
+            width: 0%;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 5px rgba(124, 58, 237, 0.5);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: none;
+            margin-top: 0;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        .message.assistant .message-avatar {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .message.assistant .message-content {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        
+        .message.assistant .message-content a {
+            color: #4f46e5;
+            text-decoration: underline;
+            word-break: break-all;
+            transition: color 0.2s;
+        }
+        
+        .message.assistant .message-content a:hover {
+            color: #7c3aed;
+        }
+        
+        .search-results {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 0.9em;
+        }
+        
+        .search-results h4 {
+            color: #4f46e5;
+            margin-bottom: 8px;
+        }
+        
+        .search-results ul {
+            padding-left: 20px;
+            margin: 0;
+        }
+        
+        .search-results li {
+            margin-bottom: 5px;
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            border-top: 1px solid #e5e7eb;
+            display: none;
+        }
+
+        .chat-input-form {
+            display: flex;
+            gap: 12px;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .chat-input:focus {
+            border-color: #4f46e5;
+        }
+
+        .send-button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+
+        .send-button:hover {
+            transform: translateY(-1px);
+        }
+
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .thinking {
+            opacity: 0.7;
+            font-style: italic;
+        }
+
+        .error-message {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 20px;
+            border-left: 4px solid #dc2626;
+        }
+        
+        /* User Info Form Styles */
+        .user-info-form {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-top: 25px;
+            margin-bottom: 15px;
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        .user-info-form h3 {
+            color: #4f46e5;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .form-group {
+            flex: 1;
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background: white;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: #4f46e5;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+        }
+        
+        .radio-group {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .radio-option {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .radio-option input {
+            margin-right: 6px;
+        }
+        
+        .save-button {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            width: 100%;
+            transition: transform 0.2s, background-color 0.2s;
+            margin-top: 10px;
+        }
+        
+        .save-button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .save-button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .form-saved-message {
+            text-align: center;
+            color: #10B981;
+            font-weight: 500;
+            margin-top: 10px;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .chat-container {
+                width: 95%;
+                height: 95vh;
+            }
+            
+            .message-content {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>🤖 Secure WebLLM Chat</h1>
+            <div class="status" id="status">Initializing...</div>
+        </div>
+
+        <div class="loading-container" id="loadingContainer">
+            <h3 id="loadingTitle">Loading AI Model</h3>
+            <p id="loadingDescription">Downloading and initializing WebLLM...</p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div id="loadingText">Preparing model...</div>
+            
+            <div class="user-info-form" id="userInfoForm">
+                <h3>Please tell us about yourself to continue</h3>
+                <p style="text-align: center; margin-bottom: 20px; color: #666;">This information helps us provide more personalized assistance</p>
+                <p style="text-align: center; margin-bottom: 20px; color: #dc2626; font-size: 0.9em;">* Required fields</p>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="userName">Full Name: <span style="color: #dc2626;">*</span></label>
+                        <input type="text" id="userName" placeholder="Enter your name" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="userAge">Age: <span style="color: #dc2626;">*</span></label>
+                        <select id="userAge" required>
+                            <option value="">Select age range</option>
+                            <option value="Under 18">Under 18</option>
+                            <option value="18-25">18-25</option>
+                            <option value="26-35">26-35</option>
+                            <option value="36-45">36-45</option>
+                            <option value="46-55">46-55</option>
+                            <option value="56-65">56-65</option>
+                            <option value="Over 65">Over 65</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="userState">US State: <span style="color: #dc2626;">*</span></label>
+                        <select id="userState" required>
+                            <option value="">Select your state</option>
+                            <option value="Alabama">Alabama</option>
+                            <option value="Alaska">Alaska</option>
+                            <option value="Arizona">Arizona</option>
+                            <option value="Arkansas">Arkansas</option>
+                            <option value="California">California</option>
+                            <option value="Colorado">Colorado</option>
+                            <option value="Connecticut">Connecticut</option>
+                            <option value="Delaware">Delaware</option>
+                            <option value="Florida">Florida</option>
+                            <option value="Georgia">Georgia</option>
+                            <option value="Hawaii">Hawaii</option>
+                            <option value="Idaho">Idaho</option>
+                            <option value="Illinois">Illinois</option>
+                            <option value="Indiana">Indiana</option>
+                            <option value="Iowa">Iowa</option>
+                            <option value="Kansas">Kansas</option>
+                            <option value="Kentucky">Kentucky</option>
+                            <option value="Louisiana">Louisiana</option>
+                            <option value="Maine">Maine</option>
+                            <option value="Maryland">Maryland</option>
+                            <option value="Massachusetts">Massachusetts</option>
+                            <option value="Michigan">Michigan</option>
+                            <option value="Minnesota">Minnesota</option>
+                            <option value="Mississippi">Mississippi</option>
+                            <option value="Missouri">Missouri</option>
+                            <option value="Montana">Montana</option>
+                            <option value="Nebraska">Nebraska</option>
+                            <option value="Nevada">Nevada</option>
+                            <option value="New Hampshire">New Hampshire</option>
+                            <option value="New Jersey">New Jersey</option>
+                            <option value="New Mexico">New Mexico</option>
+                            <option value="New York">New York</option>
+                            <option value="North Carolina">North Carolina</option>
+                            <option value="North Dakota">North Dakota</option>
+                            <option value="Ohio">Ohio</option>
+                            <option value="Oklahoma">Oklahoma</option>
+                            <option value="Oregon">Oregon</option>
+                            <option value="Pennsylvania">Pennsylvania</option>
+                            <option value="Rhode Island">Rhode Island</option>
+                            <option value="South Carolina">South Carolina</option>
+                            <option value="South Dakota">South Dakota</option>
+                            <option value="Tennessee">Tennessee</option>
+                            <option value="Texas">Texas</option>
+                            <option value="Utah">Utah</option>
+                            <option value="Vermont">Vermont</option>
+                            <option value="Virginia">Virginia</option>
+                            <option value="Washington">Washington</option>
+                            <option value="West Virginia">West Virginia</option>
+                            <option value="Wisconsin">Wisconsin</option>
+                            <option value="Wyoming">Wyoming</option>
+                            <option value="District of Columbia">District of Columbia</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Sex: <span style="color: #dc2626;">*</span></label>
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="userSex" value="Male" required> Male
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="userSex" value="Female"> Female
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="userSex" value="Other"> Other
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="userInsurance">Current Insurance Plan:</label>
+                    <select id="userInsurance">
+                        <option value="">Select your insurance type</option>
+                        <option value="Employer-sponsored">Employer-sponsored</option>
+                        <option value="Individual Marketplace">Individual Marketplace</option>
+                        <option value="Medicare">Medicare</option>
+                        <option value="Medicaid">Medicaid</option>
+                        <option value="TRICARE/Military">TRICARE/Military</option>
+                        <option value="No Insurance">No Insurance</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="userConcerns">Primary Health Insurance Concerns:</label>
+                    <input type="text" id="userConcerns" placeholder="E.g., costs, coverage, specific conditions...">
+                </div>
+                
+                <button id="saveUserInfo" class="save-button">Save My Information</button>
+                <div id="formSavedMessage" class="form-saved-message">Information saved successfully!</div>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages"></div>
+
+        <div class="chat-input-container" id="inputContainer">
+            <form class="chat-input-form" id="chatForm">
+                <input 
+                    type="text" 
+                    class="chat-input" 
+                    id="chatInput" 
+                    placeholder="Type your message..."
+                    autocomplete="off"
+                >
+                <button type="submit" class="send-button" id="sendButton">Send</button>
+            </form>
+        </div>
+
+        <div class="error-message" id="errorMessage" style="display: none;"></div>
+    </div>
+
+    <script type="module">
+        import * as webllm from "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.46/lib/index.js";
+
+        class SecureChatbot {
+            constructor() {
+                this.engine = null;
+                this.isGenerating = false;
+                this.messageHistory = []; // Simple last 3 pairs storage
+                this.userProfile = {
+                    name: '',
+                    age: '',
+                    state: '',
+                    sex: '',
+                    insurancePlan: '',
+                    concerns: ''
+                };
+                this.initializeElements();
+                this.setupEventListeners();
+                this.initializeWebLLM();
+                this.warmupModel();
+            }
+
+            initializeElements() {
+                this.statusEl = document.getElementById('status');
+                this.loadingContainer = document.getElementById('loadingContainer');
+                this.chatMessages = document.getElementById('chatMessages');
+                this.inputContainer = document.getElementById('inputContainer');
+                this.chatForm = document.getElementById('chatForm');
+                this.chatInput = document.getElementById('chatInput');
+                this.sendButton = document.getElementById('sendButton');
+                this.progressFill = document.getElementById('progressFill');
+                this.loadingText = document.getElementById('loadingText');
+                this.errorMessage = document.getElementById('errorMessage');
+                
+                // Additional loading elements
+                this.loadingTitle = this.loadingContainer.querySelector('h3');
+                this.loadingDescription = this.loadingContainer.querySelector('p:not([style])');
+                
+                // User profile form elements
+                this.userInfoForm = document.getElementById('userInfoForm');
+                this.nameInput = document.getElementById('userName');
+                this.ageSelect = document.getElementById('userAge');
+                this.stateSelect = document.getElementById('userState');
+                this.sexRadios = document.getElementsByName('userSex');
+                this.insuranceSelect = document.getElementById('userInsurance');
+                this.concernsInput = document.getElementById('userConcerns');
+                this.saveButton = document.getElementById('saveUserInfo');
+                this.formSavedMessage = document.getElementById('formSavedMessage');
+            }
+
+            setupEventListeners() {
+                this.chatForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.sendMessage();
+                });
+
+                this.chatInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+                
+                // User profile form event listener
+                this.saveButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.saveUserProfile();
+                });
+            }
+            
+            saveUserProfile() {
+                // Validate required fields
+                const requiredFields = [
+                    { field: this.nameInput.value.trim(), name: 'Name' },
+                    { field: this.ageSelect.value, name: 'Age' },
+                    { field: this.stateSelect.value, name: 'State' }
+                ];
+                
+                // Check if any radio button is selected
+                let sexSelected = false;
+                for (const radio of this.sexRadios) {
+                    if (radio.checked) {
+                        sexSelected = true;
+                        break;
+                    }
+                }
+                
+                if (!sexSelected) {
+                    requiredFields.push({ field: '', name: 'Sex' });
+                }
+                
+                // Check for empty required fields
+                const emptyFields = requiredFields.filter(item => !item.field);
+                
+                if (emptyFields.length > 0) {
+                    // Show error for missing fields
+                    this.formSavedMessage.textContent = `Please fill in the following required fields: ${emptyFields.map(f => f.name).join(', ')}`;
+                    this.formSavedMessage.style.display = 'block';
+                    this.formSavedMessage.style.color = '#dc2626';
+                    
+                    // Reset message after 3 seconds
+                    setTimeout(() => {
+                        this.formSavedMessage.style.display = 'none';
+                    }, 3000);
+                    
+                    return;
+                }
+                
+                // Get name
+                this.userProfile.name = this.nameInput.value.trim();
+                
+                // Get age
+                this.userProfile.age = this.ageSelect.value;
+                
+                // Get state
+                this.userProfile.state = this.stateSelect.value;
+                
+                // Get sex
+                for (const radio of this.sexRadios) {
+                    if (radio.checked) {
+                        this.userProfile.sex = radio.value;
+                        break;
+                    }
+                }
+                
+                // Get insurance plan
+                this.userProfile.insurancePlan = this.insuranceSelect.value;
+                
+                // Get concerns
+                this.userProfile.concerns = this.concernsInput.value.trim();
+                
+                // Show saved message
+                this.formSavedMessage.textContent = 'Information saved successfully!';
+                this.formSavedMessage.style.display = 'block';
+                this.formSavedMessage.style.color = '#10B981';
+                this.saveButton.disabled = true;
+                this.saveButton.textContent = 'Information Saved';
+                
+                // Log the collected information (for debugging)
+                console.log('User profile saved:', this.userProfile);
+                
+                // Hide the form and enable the chat interface after 1.5 seconds
+                setTimeout(() => {
+                    // Hide only the form, keep the loading bar
+                    this.userInfoForm.style.display = 'none';
+                    
+                    // Update the loading container to be more compact
+                    this.loadingContainer.style.padding = '5px 20px';
+                    this.loadingContainer.style.backgroundColor = '#f9fafb';
+                    
+                    // Update the progress bar to indicate completion
+                    const progressBarContainer = this.progressFill.parentElement;
+                    progressBarContainer.style.margin = '10px 0';
+                    this.progressFill.style.width = '100%';
+                    
+                    // Add a success message to the loading bar area
+                    const successMessage = document.createElement('div');
+                    successMessage.textContent = 'Information saved successfully! Ready to chat.';
+                    successMessage.style.color = '#10B981';
+                    successMessage.style.fontWeight = '500';
+                    successMessage.style.fontSize = '0.9em';
+                    successMessage.style.marginBottom = '10px';
+                    this.loadingContainer.insertBefore(successMessage, progressBarContainer);
+                    
+                    // Enable the chat input
+                    this.chatInput.disabled = false;
+                    this.sendButton.disabled = false;
+                    this.chatInput.placeholder = 'Type your message...';
+                    this.chatInput.focus();
+                    
+                    // Display the welcome message
+                    this.displayWelcomeMessage();
+                }, 1500);
+            }
+
+            async initializeWebLLM() {
+                try {
+                    this.updateStatus('Checking WebGPU support...');
+                    
+                    // Check WebGPU support
+                    if (!navigator.gpu) {
+                        throw new Error('WebGPU is not supported in this browser. Please use Chrome 113+ or Edge 113+');
+                    }
+
+                    this.updateLoadingProgress(10, 'WebGPU detected');
+
+                    // Initialize WebLLM engine with progress tracking
+                    this.updateStatus('Initializing WebLLM engine...');
+                    this.updateLoadingProgress(20, 'Creating engine...');
+
+                    const initProgressCallback = (report) => {
+                        const progress = Math.min(90, 20 + (report.progress * 70));
+                        this.updateLoadingProgress(progress, report.text || 'Loading model...');
+                    };
+
+                    // Prioritize 3B models for best balance of speed and capability
+                    const availableModels = [
+                        "Phi-3-mini-4k-instruct-q4f16_1-MLC",
+                        "RedPajama-INCITE-Chat-3B-v1-q4f32_1-MLC",
+                        "Phi-3-mini-4k-instruct-q4f16_1-MLC",
+                        "Llama-2-7b-chat-hf-q4f32_1-MLC",
+                        "TinyLlama-1.1B-Chat-v0.4-q4f32_1-MLC"
+                    ];
+                    
+                    this.engine = new webllm.MLCEngine();
+                    
+                    let modelLoaded = false;
+                    for (const model of availableModels) {
+                        try {
+                            this.updateLoadingProgress(20, `Trying ${model}...`);
+                            await this.engine.reload(model, {
+                                temperature: 0.6,
+                                top_p: 0.85,
+                                max_gen_len: 2048,  // Much longer responses
+                                repetition_penalty: 1.15
+                            }, initProgressCallback);
+                            modelLoaded = true;
+                            this.updateLoadingProgress(90, `Successfully loaded ${model}`);
+                            break;
+                        } catch (modelError) {
+                            console.warn(`Failed to load ${model}:`, modelError);
+                            continue;
+                        }
+                    }
+                    
+                    if (!modelLoaded) {
+                        throw new Error('Unable to load any available models. Please check your internet connection and try again.');
+                    }
+
+                    this.updateLoadingProgress(100, 'Model loaded successfully!');
+                    
+                    // Just show the chat interface with the form, but don't display welcome message yet
+                    setTimeout(() => {
+                        this.showChatInterface();
+                        this.updateStatus('Please complete the form to continue');
+                    }, 500);
+                
+                
+
+                } catch (error) {
+                    console.error('WebLLM initialization error:', error);
+                    this.showError(`Failed to initialize: ${error.message}`);
+                }
+            }
+
+            updateStatus(text) {
+                this.statusEl.textContent = text;
+            }
+
+            updateLoadingProgress(percentage, text) {
+                this.progressFill.style.width = `${percentage}%`;
+                this.loadingText.textContent = text;
+            }
+
+            showChatInterface() {
+                // Show the chat interface
+                this.chatMessages.style.display = 'block';
+                this.inputContainer.style.display = 'block';
+                
+                // Keep the loading bar visible but hide other loading elements except the form
+                this.loadingContainer.style.position = 'relative';
+                this.loadingContainer.style.flex = 'none';
+                this.loadingContainer.style.height = 'auto';
+                this.loadingContainer.style.padding = '10px 20px';
+                this.loadingContainer.style.borderBottom = '1px solid #e5e7eb';
+                
+                // Hide the loading title and description
+                this.loadingTitle.style.display = 'none';
+                this.loadingDescription.style.display = 'none';
+                this.loadingText.style.display = 'none';
+                
+                // Set progress bar to 100%
+                const progressBarContainer = this.progressFill.parentElement;
+                progressBarContainer.style.width = '100%';
+                progressBarContainer.style.maxWidth = '100%';
+                progressBarContainer.style.margin = '10px 0';
+                this.progressFill.style.width = '100%';
+                
+                // Add a loading status text
+                const loadingStatus = document.createElement('div');
+                loadingStatus.textContent = 'Model loaded successfully';
+                loadingStatus.style.fontSize = '0.9em';
+                loadingStatus.style.color = '#10B981';
+                loadingStatus.style.marginBottom = '10px';
+                this.loadingContainer.insertBefore(loadingStatus, progressBarContainer.nextSibling);
+                
+                // Make the form the main content
+                this.userInfoForm.style.maxWidth = '600px';
+                this.userInfoForm.style.margin = '20px auto';
+                
+                // Add a message to make it clear the user needs to submit the form
+                const formHeading = this.userInfoForm.querySelector('h3');
+                formHeading.textContent = 'Please complete this form to continue';
+                
+                // Disable the chat input until the form is submitted
+                this.chatInput.disabled = true;
+                this.sendButton.disabled = true;
+                this.chatInput.placeholder = 'Please complete the form above to continue...';
+            }
+
+            // System prompt for medical insurance that includes user profile information
+            getSystemPrompt() {
+                let prompt = `You are an expert Medical Insurance Assistant with web search capabilities. You specialize in explaining health insurance concepts, coverage options, claims processes, deductibles, copays, networks, and benefits.
+
+Key areas of expertise:
+- Insurance plan types (HMO, PPO, EPO, POS, HDHP)
+- Medicare and Medicaid programs
+- ACA/Obamacare marketplace plans
+- Claims processing and appeals
+- Network providers and out-of-network costs
+- Preventive care benefits
+- Prescription drug coverage
+- Open enrollment periods
+
+Guidelines:
+- Be accurate and helpful with insurance information
+- Explain complex terms in simple language
+- Always recommend consulting with insurance providers for specific coverage details
+- Be empathetic to user concerns about costs and coverage
+- Provide detailed, complete explanations without truncating
+- Give thorough responses that fully address the user's questions
+- When you receive web search results, incorporate that information into your responses
+- Use **bold text** for important terms and concepts
+- When citing information from web searches, include the source at the end of your response`;
+
+                // Add user profile information if available
+                const hasProfileInfo = Object.values(this.userProfile).some(value => value !== '');
+                
+                if (hasProfileInfo) {
+                    prompt += `\n\nUser Profile Information:`;
+                    
+                    if (this.userProfile.name) {
+                        prompt += `\n- Name: ${this.userProfile.name}`;
+                    }
+                    
+                    if (this.userProfile.age) {
+                        prompt += `\n- Age Range: ${this.userProfile.age}`;
+                    }
+                    
+                    if (this.userProfile.state) {
+                        prompt += `\n- State: ${this.userProfile.state}`;
+                    }
+                    
+                    if (this.userProfile.sex) {
+                        prompt += `\n- Sex: ${this.userProfile.sex}`;
+                    }
+                    
+                    if (this.userProfile.insurancePlan) {
+                        prompt += `\n- Current Insurance: ${this.userProfile.insurancePlan}`;
+                    }
+                    
+                    if (this.userProfile.concerns) {
+                        prompt += `\n- Primary Concerns: ${this.userProfile.concerns}`;
+                    }
+                    
+                    prompt += `\n\nPlease use this information to personalize your responses. Consider state-specific regulations, age-appropriate coverage options, and address their specific concerns when relevant. If the user has indicated their current insurance plan, provide information that's particularly relevant to that type of plan. Always address the user by name if provided.`;
+                }
+                
+                return prompt;
+            }
+            async warmupModel() {
+                if (!this.engine) {
+                    setTimeout(() => this.warmupModel(), 1000);
+                    return;
+                }
+                
+                try {
+                    // Small warmup inference to prepare GPU
+                    await this.engine.chat.completions.create({
+                        messages: [{ role: "user", content: "Hi" }],
+                        max_tokens: 1,
+                        temperature: 0.1
+                    });
+                } catch (error) {
+                    // Ignore warmup errors
+                }
+            }
+            
+            displayWelcomeMessage() {
+                this.updateStatus('Ready to chat! 🏥');
+                
+                // Create personalized welcome message based on user profile
+                let welcomeMessage = 'Hello';
+                
+                // Add name if provided
+                if (this.userProfile.name) {
+                    welcomeMessage += `, ${this.userProfile.name}`;
+                }
+                
+                welcomeMessage += '! I\'m your AI Medical Insurance Assistant running securely in your browser. I can help you understand insurance plans, coverage options, claims processes, deductibles, and benefits. Your conversations are completely private.';
+                
+                // Add personalized information if available
+                const hasProfileInfo = Object.values(this.userProfile).some(value => value !== '');
+                
+                if (hasProfileInfo) {
+                    welcomeMessage += ' Based on the information you\'ve shared:';
+                    
+                    if (this.userProfile.state) {
+                        welcomeMessage += `\n\n• I'll consider ${this.userProfile.state}'s specific insurance regulations and marketplace options in my responses.`;
+                    }
+                    
+                    if (this.userProfile.insurancePlan && this.userProfile.insurancePlan !== 'No Insurance') {
+                        welcomeMessage += `\n\n• I see you currently have ${this.userProfile.insurancePlan} insurance. I can provide information specific to this type of coverage.`;
+                    } else if (this.userProfile.insurancePlan === 'No Insurance') {
+                        welcomeMessage += `\n\n• I notice you currently don't have insurance. I can help explain options available to you for obtaining coverage.`;
+                    }
+                    
+                    if (this.userProfile.concerns) {
+                        welcomeMessage += `\n\n• I'll focus on addressing your concerns about: ${this.userProfile.concerns}`;
+                    }
+                    
+                    welcomeMessage += '\n\nFeel free to ask me any questions about health insurance, and I\'ll provide personalized guidance based on your situation.';
+                } else {
+                    welcomeMessage += ' What insurance questions can I help you with today?';
+                }
+                
+                this.addMessage('assistant', welcomeMessage);
+            }
+
+            showError(message) {
+                this.errorMessage.textContent = message;
+                this.errorMessage.style.display = 'block';
+                this.loadingContainer.style.display = 'none';
+                this.updateStatus('Error occurred');
+            }
+
+            addMessage(role, content, isThinking = false) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${role}`;
+                
+                const avatar = document.createElement('div');
+                avatar.className = 'message-avatar';
+                avatar.textContent = role === 'user' ? 'U' : 'AI';
+                
+                // Clean the content to remove any "<human" tag if it's from the assistant
+                const cleanedContent = role === 'assistant' ? content.replace(/<human.*$/, '') : content;
+                
+                const messageContent = document.createElement('div');
+                messageContent.className = `message-content ${isThinking ? 'thinking' : ''}`;
+                
+                // Convert URLs to clickable links
+                if (role === 'assistant') {
+                    // More comprehensive URL regex that handles various URL formats
+                    const urlRegex = /(https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*))|((www\.)[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*))/g;
+                    
+                    // Replace URLs with anchor tags
+                    const contentWithLinks = cleanedContent.replace(urlRegex, (url) => {
+                        // Add https:// prefix if the URL starts with www.
+                        const href = url.startsWith('www.') ? 'https://' + url : url;
+                        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+                    });
+                    
+                    // Convert **text** to bold
+                    const contentWithBold = contentWithLinks.replace(
+                        /\*\*(.*?)\*\*/g,
+                        '<strong>$1</strong>'
+                    );
+                    
+                    // Set HTML content with links and bold text
+                    messageContent.innerHTML = contentWithBold;
+                } else {
+                    // For user messages, just use text content
+                    messageContent.textContent = cleanedContent;
+                }
+                
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(messageContent);
+                
+                this.chatMessages.appendChild(messageDiv);
+                this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+                
+                return messageContent;
+            }
+
+            // Determine if a message needs web search
+            shouldPerformSearch(message) {
+                // Determine if the message likely needs external information
+                const searchTriggers = [
+                    'what is', 'how does', 'tell me about', 'explain', 
+                    'compare', 'difference between', 'when is', 'where can',
+                    'latest', 'recent', 'news', 'update', 'changes',
+                    'statistics', 'data', 'research', 'study', 'report',
+                    'cost', 'price', 'rates', 'coverage', 'benefits',
+                    'eligibility', 'qualify', 'requirements', 'deadline',
+                    'enrollment', 'application', 'process', 'procedure'
+                ];
+                
+                const lowerMessage = message.toLowerCase();
+                
+                // Check if the message contains any search triggers
+                return searchTriggers.some(trigger => lowerMessage.includes(trigger));
+            }
+            
+            // Perform web search and return results
+            async performWebSearch(query) {
+                try {
+                    // Show searching message
+                    const searchingMessage = this.addMessage('assistant', 'Searching the web for information...', true);
+                    
+                    // Simulate web search (in a real implementation, this would call an actual search API)
+                    const searchResults = await this.fetchSearchResults(query);
+                    
+                    // Update the searching message with results
+                    searchingMessage.innerHTML = `Found relevant information from ${searchResults.sources.length} sources.`;
+                    
+                    return searchResults;
+                } catch (error) {
+                    console.error('Error during web search:', error);
+                    return { content: '', sources: [] };
+                }
+            }
+            
+            // Fetch search results from the web
+            async fetchSearchResults(query) {
+                // This is a simulation of a web search API
+                // In a real implementation, this would call an actual search API like Google Custom Search, Bing, etc.
+                
+                // For demonstration purposes, we'll simulate a delay and return mock data
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // Determine search context based on query
+                let searchContext = '';
+                let sources = [];
+                
+                // Insurance-related queries
+                if (query.includes('medicare') || query.includes('medicaid')) {
+                    searchContext = "According to Medicare.gov, Medicare is the federal health insurance program for people who are 65 or older, certain younger people with disabilities, and people with End-Stage Renal Disease. Medicare Part A covers hospital stays, Part B covers outpatient services, Part C is Medicare Advantage, and Part D covers prescription drugs. Medicaid is a state and federal program that provides health coverage for some people with limited income and resources.";
+                    sources.push({ title: "Medicare.gov - What Medicare Covers", url: "https://www.medicare.gov/what-medicare-covers" });
+                    sources.push({ title: "Medicaid.gov - Eligibility", url: "https://www.medicaid.gov/medicaid/eligibility/index.html" });
+                }
+                else if (query.includes('insurance') && (query.includes('marketplace') || query.includes('exchange'))) {
+                    searchContext = "The Health Insurance Marketplace (also known as the 'Exchange') was established by the Affordable Care Act and provides a platform for individuals and families to purchase health insurance. Open enrollment typically runs from November 1 to January 15, though some states have extended periods. Special enrollment periods are available for qualifying life events like losing other coverage, getting married, or having a baby.";
+                    sources.push({ title: "HealthCare.gov - Health Insurance Marketplace", url: "https://www.healthcare.gov/quick-guide/getting-marketplace-health-insurance/" });
+                    sources.push({ title: "CMS.gov - Open Enrollment", url: "https://www.cms.gov/newsroom/fact-sheets/marketplace-2023-open-enrollment-fact-sheet" });
+                }
+                else if (query.includes('deductible') || query.includes('copay') || query.includes('coinsurance')) {
+                    searchContext = "A deductible is the amount you pay for covered health care services before your insurance plan starts to pay. A copayment (or copay) is a fixed amount you pay for a covered health care service, usually when you receive the service. Coinsurance is the percentage of costs you pay after you've met your deductible. For example, if your plan has 20% coinsurance, you pay 20% of the allowed amount for services, and your insurance pays 80%.";
+                    sources.push({ title: "HealthCare.gov - Health Insurance Terms", url: "https://www.healthcare.gov/glossary/" });
+                    sources.push({ title: "AHIP - Understanding Health Insurance", url: "https://www.ahip.org/resources/understanding-health-insurance" });
+                }
+                else if (this.userProfile.state && query.toLowerCase().includes(this.userProfile.state.toLowerCase())) {
+                    // State-specific information
+                    searchContext = `Health insurance regulations and options in ${this.userProfile.state} include state-specific mandates and programs. The state insurance department provides resources for residents to understand their rights and options. ${this.userProfile.state} may have expanded Medicaid coverage and offers its own health insurance marketplace or uses the federal marketplace at HealthCare.gov.`;
+                    sources.push({ title: `${this.userProfile.state} Department of Insurance`, url: `https://www.google.com/search?q=${this.userProfile.state}+department+of+insurance` });
+                    sources.push({ title: `${this.userProfile.state} Health Insurance Options`, url: `https://www.healthcare.gov/marketplace-in-your-state/` });
+                }
+                else {
+                    // Generic health insurance information
+                    searchContext = "Health insurance plans are categorized into different types including HMOs (Health Maintenance Organizations), PPOs (Preferred Provider Organizations), EPOs (Exclusive Provider Organizations), and HDHPs (High Deductible Health Plans). Each type has different rules for coverage, network providers, and costs. Most plans cover essential health benefits like preventive care, emergency services, hospitalization, prescription drugs, and more.";
+                    sources.push({ title: "HealthCare.gov - Types of Health Insurance Plans", url: "https://www.healthcare.gov/choose-a-plan/plan-types/" });
+                    sources.push({ title: "BCBS - Understanding Health Insurance", url: "https://www.bcbs.com/articles/understanding-health-insurance" });
+                }
+                
+                return {
+                    content: searchContext,
+                    sources: sources
+                };
+            }
+            
+            // Process response text to add formatting
+            processResponseText(text) {
+                // Convert URLs to clickable links
+                let processed = text.replace(
+                    /(https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*))|((www\.)[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*))/g,
+                    (url) => {
+                        // Add https:// prefix if the URL starts with www.
+                        const href = url.startsWith('www.') ? 'https://' + url : url;
+                        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+                    }
+                );
+                
+                // Convert markdown links [text](url) to HTML links
+                processed = processed.replace(
+                    /\[([^\]]+)\]\(([^)]+)\)/g,
+                    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+                );
+                
+                // Convert **text** to bold
+                processed = processed.replace(
+                    /\*\*(.*?)\*\*/g,
+                    '<strong>$1</strong>'
+                );
+                
+                // Convert newlines to <br> tags
+                processed = processed.replace(/\n/g, '<br>');
+                
+                return processed;
+            }
+            
+            async sendMessage() {
+                if (this.isGenerating || !this.engine) return;
+                
+                const message = this.chatInput.value.trim();
+                if (!message) return;
+
+                this.chatInput.value = '';
+                this.isGenerating = true;
+                this.sendButton.disabled = true;
+                this.updateStatus('Thinking...');
+
+                // Add user message
+                this.addMessage('user', message);
+
+                // Add streaming response container
+                const responseDiv = document.createElement('div');
+                responseDiv.className = 'message assistant';
+                
+                const avatar = document.createElement('div');
+                avatar.className = 'message-avatar';
+                avatar.textContent = 'AI';
+                
+                const messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+                messageContent.textContent = '';
+                
+                responseDiv.appendChild(avatar);
+                responseDiv.appendChild(messageContent);
+                this.chatMessages.appendChild(responseDiv);
+
+                try {
+                    // Determine if we should perform a web search
+                    const needsSearch = this.shouldPerformSearch(message);
+                    let searchResults = { content: '', sources: [] };
+                    
+                    if (needsSearch) {
+                        searchResults = await this.performWebSearch(message);
+                    }
+                    
+                    let fullResponse = '';
+                    
+                    // Build messages array starting with system prompt
+                    const messages = [
+                        {
+                            role: "system",
+                            content: this.getSystemPrompt()
+                        }
+                    ];
+                    
+                    // Add search results if available (as part of the system prompt)
+                    if (searchResults.content) {
+                        // Append to the existing system prompt instead of adding a new system message
+                        messages[0].content += `\n\nI've searched the web and found this relevant information: ${searchResults.content}\n\nPlease use this information to help answer the user's question.`;
+                    }
+
+                    // Add last 3 message pairs for context (6 messages total)
+                    messages.push(...this.messageHistory);
+                    
+                    // Add current user message
+                    messages.push({
+                        role: "user",
+                        content: message
+                    });
+
+                    // Use streaming for faster perceived response
+                    const stream = await this.engine.chat.completions.create({
+                        messages: messages,
+                        temperature: 0.6,
+                        max_tokens: 1500,  // Much longer responses
+                        top_p: 0.85,
+                        stream: true,
+                        stream_options: { include_usage: true }
+                    });
+                    
+                    // Process streaming response
+                    for await (const chunk of stream) {
+                        if (chunk.choices[0]?.delta?.content) {
+                            fullResponse += chunk.choices[0].delta.content;
+                            // Clean the response to remove any "<human" tag
+                            const cleanedResponse = fullResponse.replace(/<human.*$/, '');
+                            // Format the response with links and bold text
+                            messageContent.innerHTML = this.processResponseText(cleanedResponse);
+                            this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+                        }
+                    }
+                    
+                    // Final cleanup of the full response
+                    fullResponse = fullResponse.replace(/<human.*$/, '');
+
+                    // Fallback to non-streaming if streaming fails
+                    if (!fullResponse) {
+                        const response = await this.engine.chat.completions.create({
+                            messages: messages,
+                            temperature: 0.6,
+                            max_tokens: 1500
+                        });
+                        fullResponse = response.choices[0].message.content;
+                        // Clean the response to remove any "<human" tag
+                        fullResponse = fullResponse.replace(/<human.*$/, '');
+                        // Format the response
+                        messageContent.innerHTML = this.processResponseText(fullResponse);
+                    }
+                    
+                    // If we used search results, add source citations at the end
+                    if (searchResults.sources.length > 0 && !fullResponse.includes('Sources:')) {
+                        fullResponse += '\n\n**Sources:**\n';
+                        searchResults.sources.forEach((source, index) => {
+                            fullResponse += `${index + 1}. [${source.title}](${source.url})\n`;
+                        });
+                        messageContent.innerHTML = this.processResponseText(fullResponse);
+                    }
+
+                    // Add user message and response to history
+                    this.messageHistory.push({
+                        role: "user",
+                        content: message
+                    });
+                    
+                    // Make sure we're storing the cleaned response in history
+                    const cleanedResponse = fullResponse.replace(/<human.*$/, '');
+                    this.messageHistory.push({
+                        role: "assistant", 
+                        content: cleanedResponse
+                    });
+
+                    // Keep only last 3 pairs (6 messages)
+                    if (this.messageHistory.length > 6) {
+                        this.messageHistory = this.messageHistory.slice(-6);
+                    }
+
+                } catch (error) {
+                    console.error('Generation error:', error);
+                    messageContent.textContent = 'Sorry, I encountered an error. Please try again.';
+                }
+
+                this.isGenerating = false;
+                this.sendButton.disabled = false;
+                this.updateStatus('Ready to chat! 🏥');
+                this.chatInput.focus();
+            }
+        }
+
+        // Initialize the chatbot when the page loads
+        window.addEventListener('load', () => {
+            new SecureChatbot();
+        });
+    </script>
+</body>
+</html>
