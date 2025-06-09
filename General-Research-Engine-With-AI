@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>General Purpose AI Assistant</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans', 'sans-serif', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#e0f7fa',
+                            100: '#b2ebf2',
+                            200: '#80deea',
+                            300: '#4dd0e1',
+                            400: '#26c6da',
+                            500: '#00bcd4', // Main brand color
+                            600: '#00acc1',
+                            700: '#0097a7',
+                            800: '#00838f',
+                            900: '#006064',
+                        },
+                        secondary: {
+                            50: '#e8f5e9',
+                            100: '#c8e6c9',
+                            200: '#a5d6a7',
+                            300: '#81c784',
+                            400: '#66bb6a',
+                            500: '#4caf50', // Accent green
+                            600: '#43a047',
+                            700: '#388e3c',
+                            800: '#2e7d32',
+                            900: '#1b5e20',
+                        },
+                        info: '#2196f3',
+                        warning: '#ff9800',
+                        error: '#f44336',
+                        success: '#4caf50',
+                        neutral: {
+                            50: '#f9fafb',
+                            100: '#f3f4f6',
+                            200: '#e5e7eb',
+                            300: '#d1d5db',
+                            400: '#9ca3af',
+                            500: '#6b7280',
+                            600: '#4b5563',
+                            700: '#374151',
+                            800: '#1f2937',
+                            900: '#111827',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar for chat container */
+        #chat-container::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #chat-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+
+        #chat-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+
+        #chat-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Adjust textarea height dynamically */
+        #userInput {
+            overflow: hidden;
+            /* Hide scrollbar */
+        }
+    </style>
+</head>
+<body class="font-sans bg-gradient-to-br from-primary-600 to-primary-800 min-h-screen flex items-center justify-center p-4">
+    <div class="container bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col w-full max-w-3xl min-h-[85vh] max-h-[95vh]">
+        <!-- Header Section -->
+        <div class="header bg-gradient-to-r from-primary-500 to-primary-700 text-white p-6 text-center shadow-md rounded-t-xl">
+            <h1 class="text-3xl font-bold flex items-center justify-center gap-3">
+                ✨ General Purpose AI Assistant
+            </h1>
+            <p class="text-primary-100 text-sm mt-1">Your AI assistant for general knowledge and information</p>
+        </div>
+
+        <!-- Controls Section -->
+        <div class="controls p-4 bg-neutral-50 border-b border-neutral-200 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <label class="research-toggle flex items-center gap-2 text-neutral-700 text-sm font-medium">
+                <input type="checkbox" id="researchToggle" checked class="form-checkbox h-5 w-5 text-primary-500 rounded focus:ring-primary-400 cursor-pointer">
+                <span class="ml-1">🌐 Enable web research for current topics (AI decides when to use it)</span>
+            </label>
+        </div>
+
+        <!-- Status Bar -->
+        <div id="status" class="bg-primary-100 text-primary-800 font-semibold text-center p-3 border-b border-primary-200 text-sm">
+            🔄 Initializing AI engine...
+        </div>
+
+        <!-- Chat Container -->
+        <div id="chat-container" class="flex-grow overflow-y-auto p-4 bg-neutral-50 space-y-4">
+            <!-- Messages will be appended here -->
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area p-4 bg-white border-t border-neutral-200 flex flex-col sm:flex-row items-end gap-3 shadow-inner">
+            <textarea id="userInput" placeholder="Ask me anything..." disabled rows="1"
+                class="flex-1 p-3 border-2 border-neutral-300 rounded-lg focus:outline-none focus:border-primary-500 transition-colors duration-200 text-neutral-800 resize-none min-h-[44px] max-h-[120px] scrollbar-thin scrollbar-thumb-neutral-400 scrollbar-track-neutral-100"
+                oninput="this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px';"></textarea>
+            <button id="sendBtn" disabled
+                class="px-6 py-2 bg-primary-500 text-white font-semibold rounded-lg shadow-md hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-opacity-75 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                Send
+                <span class="loading hidden ml-2 w-4 h-4 border-2 border-white border-t-2 border-t-primary-200 rounded-full animate-spin"></span>
+            </button>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as webllm from "https://esm.run/@mlc-ai/web-llm@0.2.46";
+
+        let engine;
+        const chatContainer = document.getElementById("chat-container");
+        const statusDiv = document.getElementById("status");
+        const input = document.getElementById("userInput");
+        const sendBtn = document.getElementById("sendBtn");
+        const researchToggle = document.getElementById("researchToggle");
+        const loadingSpinner = sendBtn.querySelector(".loading");
+
+        // Current date information for context awareness
+        const currentDate = new Date();
+        const dateOptions = {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        };
+        const currentDateString = currentDate.toLocaleDateString(undefined, dateOptions);
+        const currentTimeString = currentDate.toLocaleTimeString();
+        const currentTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const dateContext = `Current date: ${currentDateString}\nCurrent time: ${currentTimeString}\nTimezone: ${currentTimezone}`;
+
+        // Chat history to maintain context for the LLM
+        let chatHistory = []; // Stores objects like { role: "user", content: "..." }
+
+        const proxies = [
+            'https://corsproxy.io/?',
+            'https://api.codetabs.com/v1/proxy?quest=',
+        ];
+
+        /**
+         * Appends a message to the chat display.
+         * @param {string} role - The role of the message sender (user, ai, research, system).
+         * @param {string} text - The content of the message.
+         * @param {Array<Object>} [sources=null] - Optional array of source objects ({title, url}).
+         */
+        function appendMessage(role, text, sources = null) {
+            const div = document.createElement("div");
+            let roleClass = '';
+            let roleLabel = '';
+            let textColor = 'text-neutral-800'; // Default text color
+
+            switch (role) {
+                case 'user':
+                    roleClass = 'self-end bg-primary-50 border-l-4 border-primary-500';
+                    roleLabel = 'You';
+                    break;
+                case 'ai':
+                    roleClass = 'self-start bg-secondary-50 border-l-4 border-secondary-500';
+                    roleLabel = 'AI Assistant'; // Changed label
+                    break;
+                case 'research':
+                    roleClass = 'self-start bg-warning-50 border-l-4 border-warning-500 text-sm italic';
+                    roleLabel = '🔍 Research';
+                    break;
+                case 'system':
+                    roleClass = 'self-center text-center text-sm italic text-neutral-600 bg-neutral-100 border-l-4 border-neutral-400';
+                    roleLabel = 'System';
+                    break;
+                default:
+                    roleClass = 'self-start bg-neutral-100 border-l-4 border-neutral-300';
+                    roleLabel = role;
+            }
+
+            div.className = `message p-3 rounded-lg max-w-[85%] sm:max-w-[70%] shadow-sm ${roleClass}`;
+            
+            let content = `<strong class="${textColor}">${roleLabel}:</strong> <span class="${textColor}">${text}</span>`;
+
+            if (sources && sources.length > 0) {
+                content += '<div class="mt-3 pt-3 border-t border-neutral-200 text-xs text-neutral-600">';
+                content += '<strong>Sources:</strong><br>';
+                sources.forEach((source, index) => {
+                    content += `<span class="block mt-1">${index + 1}. <a href="${source.url}" target="_blank" rel="noopener noreferrer" class="text-primary-600 hover:underline">${source.title || source.url}</a> (${source.engine})</span>`;
+                });
+                content += '</div>';
+            }
+
+            div.innerHTML = content;
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return div;
+        }
+
+
+        /**
+         * Initializes the WebLLM engine.
+         */
+        async function initChatEngine() {
+            try {
+                statusDiv.textContent = "⚙️ Loading AI engine (this may take a moment)...";
+                engine = new webllm.MLCEngine();
+                await engine.reload("Phi-3-mini-4k-instruct-q4f16_1-MLC", {
+                    progressCallback: (report) => {
+                        statusDiv.textContent = `⬇️ Downloading model: ${report.progress.toFixed(2)}%`;
+                    }
+                });
+                statusDiv.textContent = "✅ AI engine ready! Ask me anything."; // Generalized message
+                input.disabled = false;
+                sendBtn.disabled = false;
+                input.focus();
+
+                appendMessage('system', 'Welcome to the General Purpose AI Assistant! I can help you with a wide range of questions. Just ask!'); // Generalized message
+            } catch (error) {
+                console.error("Failed to load WebLLM engine:", error);
+                statusDiv.textContent = `❌ Error: Failed to load AI engine. Please check console.`;
+                appendMessage('system', 'Sorry, I encountered an error loading my AI capabilities. Please try refreshing the page.');
+            }
+        }
+
+        /**
+         * Determines if web research is required for a given question.
+         * Uses the LLM to classify whether the information is likely to be dynamic.
+         * @param {string} userQuestion - The question asked by the user.
+         * @returns {Promise<boolean>} - True if research is needed, false otherwise.
+         */
+        async function shouldPerformResearch(userQuestion) {
+            try {
+                const researchDecisionPrompt = `Analyze the following user question and determine if it requires up-to-date, dynamic, or highly specific information that would best be found through web research.
+
+Classify the question into one of two categories:
+- "needs_research": The question is about current events, recent statistics, evolving situations, product availability, live data, or very specific details that might change over time.
+- "static_knowledge": The question is about historical facts, definitions, common concepts, widely known principles, theoretical ideas, or information that is generally stable and unlikely to change.
+
+Examples for "needs_research":
+- "What's the current population of Tokyo?"
+- "Who won the last Super Bowl?"
+- "What are the latest developments in AI ethics?"
+- "What's the weather like in London right now?"
+- "Which is the best new smartphone released this year?"
+
+Examples for "static_knowledge":
+- "What is the capital of France?"
+- "Explain the theory of relativity."
+- "Who was William Shakespeare?"
+- "What are the primary colors?"
+- "How does photosynthesis work?"
+
+Question: "${userQuestion}"
+
+Category:`;
+
+                const reply = await engine.chat.completions.create({
+                    messages: [
+                        {
+                            role: "system",
+                            content: `You are an intelligent decision-making AI. Your task is to accurately classify user questions to determine if web research is necessary. Respond with ONLY "needs_research" or "static_knowledge".`
+                        },
+                        { role: "user", content: researchDecisionPrompt }
+                    ],
+                    temperature: 0.1, // Keep temperature low for precise classification
+                    max_tokens: 30, // Expect a short, specific response
+                    stream: false
+                });
+
+                const decision = (reply.choices?.[0]?.message?.content || "").trim().toLowerCase();
+                console.log(`Research decision for "${userQuestion}": ${decision}`);
+                return decision === "needs_research";
+
+            } catch (error) {
+                console.error('Error deciding whether to perform research:', error);
+                // Fallback: If AI decision fails, default to performing research to be safe
+                return true; 
+            }
+        }
+
+        /**
+         * Generates search terms based on the user's question and query type.
+         * Uses the LLM to create targeted search queries.
+         * @param {string} userQuestion - The question asked by the user.
+         * @returns {Promise<Array<string>>} - An array of generated search terms.
+         */
+        async function generateSearchTerms(userQuestion) {
+            try {
+                const queryType = await detectQueryType(userQuestion);
+
+                const searchTermPrompt = `Given this user question: "${userQuestion}"
+
+I've identified this as a "${queryType}" type query. Generate 3-5 highly effective search terms specifically for finding current, relevant, and comprehensive information.
+
+Advanced Search Term Generation Rules:
+- Prioritize terms directly related to the core subject of the question.
+- Include specific keywords and entities mentioned in the question.
+- For time-sensitive topics, include explicit time references like "2024 events", "latest news" based on ${dateContext}.
+- For comparison queries, include terms like "vs", "compared to", "difference between".
+- For data-heavy topics, include terms like "statistics", "data", "figures".
+- Consider regional specificity if implied.
+
+Format as a simple list, one search term per line. Ensure terms are concise and directly searchable:`;
+
+                const reply = await engine.chat.completions.create({
+                    messages: [
+                        {
+                            role: "system",
+                            content: `You are an expert search strategist. Your goal is to craft optimal, precise search terms that will yield the most accurate and up-to-date information on any given topic. You understand various domains and keyword optimization.`
+                        },
+                        { role: "user", content: searchTermPrompt }
+                    ],
+                    temperature: 0.2,
+                    max_tokens: 150,
+                    stream: false
+                });
+
+                const content = reply.choices?.[0]?.message?.content || "";
+
+                const searchTerms = content.split('\n')
+                    .map(term => term.trim())
+                    .filter(term => term.length > 0 && !term.includes(':') && term.length < 80) // Filter out conversational parts
+                    .slice(0, 5); // Get up to 5 terms
+
+                if (searchTerms.length < 2) {
+                    searchTerms.push(userQuestion);
+                    const simplifiedQuestion = userQuestion.split(' ').slice(0, 8).join(' ');
+                    if (simplifiedQuestion !== userQuestion) {
+                        searchTerms.push(simplifiedQuestion);
+                    }
+                }
+                return searchTerms;
+            } catch (error) {
+                console.error('Error generating search terms:', error);
+                return [userQuestion.split(' ').slice(0, 8).join(' ')];
+            }
+        }
+
+        /**
+         * Detects the type of query to better inform search term generation and content extraction.
+         * Uses the LLM to classify the query.
+         * @param {string} question - The user's question.
+         * @returns {Promise<string>} - The detected query type category.
+         */
+        async function detectQueryType(question) {
+            try {
+                const typePrompt = `Analyze this user question and classify it into EXACTLY ONE of these categories:
+"factual" - Questions seeking objective facts, definitions, or statistics.
+"how-to" - Questions asking for instructions or steps to perform a task.
+"comparison" - Questions comparing two or more entities or concepts.
+"opinion" - Questions seeking subjective viewpoints or interpretations.
+"creative" - Questions prompting for stories, poems, code, or other creative content.
+"news" - Questions about current events or recent developments.
+"history" - Questions about past events, figures, or timelines.
+"science-tech" - Questions related to scientific concepts, technology, or engineering.
+"arts-literature" - Questions about art, books, music, movies, etc.
+"geography" - Questions about locations, countries, landmarks, etc.
+"people-biography" - Questions about individuals' lives or achievements.
+"health-wellness" - Questions about general health, fitness, or well-being (not specific to insurance).
+"finance-economics" - Questions about money, markets, economic principles (not specific to insurance).
+"sports-recreation" - Questions about sports, games, hobbies.
+"general-inquiry" - Broad questions not fitting a more specific category above.
+
+Question: "${question}"
+
+Category:`;
+
+                const reply = await engine.chat.completions.create({
+                    messages: [
+                        { role: "system", content: "You are an expert query classification expert. Respond with ONLY the single best category name from the provided list." },
+                        { role: "user", content: typePrompt }
+                    ],
+                    temperature: 0.1,
+                    max_tokens: 30,
+                    stream: false
+                });
+
+                let queryType = reply.choices?.[0]?.message?.content || "";
+                queryType = queryType.trim().toLowerCase().replace(/[^a-z-]/g, '');
+
+                const validTypes = [
+                    'factual', 'how-to', 'comparison', 'opinion', 'creative', 'news',
+                    'history', 'science-tech', 'arts-literature', 'geography',
+                    'people-biography', 'health-wellness', 'finance-economics',
+                    'sports-recreation', 'general-inquiry'
+                ];
+
+                if (!validTypes.includes(queryType)) {
+                    queryType = 'general-inquiry'; // Default fallback for general context
+                }
+
+                return queryType;
+            } catch (error) {
+                console.error('Error detecting query type:', error);
+                return 'general-inquiry'; // Robust fallback
+            }
+        }
+
+        /**
+         * Performs a web search and extracts only metadata (title, snippet, URL).
+         * @param {string} query - The search query.
+         * @returns {Promise<Array<Object>>} - An array of search result objects ({title, snippet, url, searchTerm, engine}).
+         */
+        async function searchAndExtractMetadata(query) {
+            const results = [];
+            const searchEngines = [{ name: 'duckduckgo', url: `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}` }];
+
+            for (const engine of searchEngines) {
+                if (results.length >= 5) break; // Limit initial metadata results to 5
+
+                for (const proxyUrl of proxies) {
+                    try {
+                        console.log(`Searching ${engine.name} with proxy: ${proxyUrl}`);
+                        const controller = new AbortController();
+                        const id = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+
+                        const response = await fetch(proxyUrl + encodeURIComponent(engine.url), {
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                            },
+                            signal: controller.signal
+                        });
+                        clearTimeout(id);
+
+                        if (!response.ok) {
+                            console.warn(`[${engine.name}] Response from ${proxyUrl} was not OK: ${response.status} ${response.statusText}`);
+                            continue;
+                        }
+
+                        let data;
+                        const contentType = response.headers.get('content-type') || '';
+
+                        if (contentType.includes('application/json')) {
+                            data = await response.json();
+                            data = data.contents;
+                        } else {
+                            data = await response.text();
+                        }
+                        
+                        let doc = null;
+                        try {
+                            const parser = new DOMParser();
+                            doc = parser.parseFromString(data, 'text/html');
+                        } catch (parseError) {
+                            console.error(`[${engine.name}] Error parsing HTML from ${proxyUrl}:`, parseError);
+                            continue;
+                        }
+
+                        const engineResults = parseSearchPageResults(doc, engine.name, query);
+
+                        if (engineResults.length > 0) {
+                            console.log(`Found ${engineResults.length} metadata results from ${engine.name}`);
+                            results.push(...engineResults);
+                            break;
+                        } else {
+                            console.log(`[${engine.name}] No metadata extracted from ${proxyUrl} for query "${query}".`);
+                        }
+
+                    } catch (proxyError) {
+                        if (proxyError.name === 'AbortError') {
+                            console.log(`[${engine.name}] Search with ${proxyUrl} timed out.`);
+                        } else {
+                            console.log(`[${engine.name}] Search with ${proxyUrl} failed:`, proxyError.message);
+                        }
+                        continue;
+                    }
+                }
+            }
+            return results;
+        }
+
+        /**
+         * Parses DuckDuckGo search page HTML to extract title, snippet, and URL.
+         * @param {Document} doc - The parsed HTML document of the search results page.
+         * @param {string} engineName - The name of the search engine (should be 'duckduckgo').
+         * @param {string} query - The original search query.
+         * @returns {Array<Object>} - An array of extracted result objects ({title, snippet, url, searchTerm, engine}).
+         */
+        function parseSearchPageResults(doc, engineName, query) {
+            const results = [];
+            const duckduckgoSelectors = {
+                result: ['.result', '.web-result', '.result__body', '.results_links'],
+                title: ['.result__title a', '.result__a', 'h3 a', '.title a', '.result__url'],
+                snippet: ['.result__snippet', '.result__body', '.snippet', '.description'],
+                url: ['.result__title a', '.result__a']
+            };
+
+            let resultElements = [];
+            for (const selector of duckduckgoSelectors.result) {
+                if (selector && typeof selector === 'string' && selector.length > 0) {
+                    try {
+                         resultElements = doc.querySelectorAll(selector);
+                    } catch (e) {
+                         console.warn(`[${engineName}] Invalid selector "${selector}" or querySelectorAll error during initial selection:`, e);
+                         continue;
+                    }
+                    if (resultElements.length > 0) break;
+                }
+            }
+
+            if (resultElements.length === 0) {
+                console.log(`[${engineName}] No primary result elements found for any selector.`);
+                return results;
+            }
+
+            for (let i = 0; i < Math.min(5, resultElements.length); i++) { // Limit to top 5 for metadata to be passed to LLM
+                const result = resultElements[i];
+                if (!result || typeof result.querySelector !== 'function') {
+                    console.warn(`[${engineName}] Skipping invalid result element at index ${i}.`);
+                    continue; 
+                }
+
+                let titleElement;
+                let title = '', snippet = '', url = ''; // Snippet will not be used in relevance prompt but still collected
+
+                for (const selector of duckduckgoSelectors.title) {
+                    if (selector && typeof selector === 'string' && selector.length > 0) {
+                        try {
+                            titleElement = result.querySelector(selector);
+                            if (titleElement) {
+                                title = titleElement.textContent?.trim() || '';
+                                url = titleElement.href || ''; // URL is often on the title link
+                                break;
+                            }
+                        } catch (e) { console.warn(`[${engineName}] Error querying title with selector "${selector}":`, e); }
+                    }
+                }
+
+                // Still try to get snippet, even if not used in prompt, for display purposes
+                for (const selector of duckduckgoSelectors.snippet) {
+                    if (selector && typeof selector === 'string' && selector.length > 0) {
+                        try {
+                            const snippetElement = result.querySelector(selector);
+                            if (snippetElement) {
+                                snippet = snippetElement.textContent?.trim() || '';
+                                break;
+                            }
+                        } catch (e) { console.warn(`[${engineName}] Error querying snippet with selector "${selector}":`, e); }
+                    }
+                }
+                
+                // Clean up DuckDuckGo redirect URLs
+                if (url && url.includes('/l/?uddg=')) {
+                    try {
+                        const urlParams = new URLSearchParams(url.split('?')[1]);
+                        url = decodeURIComponent(urlParams.get('uddg') || url);
+                    } catch (e) { console.warn(`[${engineName}] Failed to parse DuckDuckGo redirect URL '${url}':`, e); }
+                }
+                
+                const invalidUrlKeywords = ['duckduckgo.com', 'search?']; 
+                if (title && url && !invalidUrlKeywords.some(keyword => url.includes(keyword))) {
+                    results.push({
+                        title: title,
+                        snippet: snippet || 'No description available.', // Keep snippet for later display if needed
+                        url: url,
+                        searchTerm: query,
+                        engine: engineName
+                    });
+                } else {
+                    console.log(`[${engineName}] Skipping result due to missing title/URL or invalid URL keyword: Title: "${title}", URL: "${url}"`);
+                }
+            }
+            return results;
+        }
+
+        /**
+         * Uses the LLM to filter relevant search results based on titles and URLs.
+         * @param {string} userQuestion - The original user question.
+         * @param {Array<Object>} searchMetadata - Array of search result metadata ({title, snippet, url}).
+         * @returns {Promise<Array<string>>} - An array of URLs of the most relevant results.
+         */
+        async function filterRelevantResults(userQuestion, searchMetadata) {
+            if (searchMetadata.length === 0) return [];
+
+            let metadataPrompt = `The user asked: "${userQuestion}"\n\n`;
+            metadataPrompt += `Below are search results. For each result, I've provided its title and its URL. Your task is to identify and return ONLY the URLs of the results that are highly relevant to the user's original question. Prioritize official, authoritative, or comprehensive sources if multiple seem relevant.
+
+Respond with ONLY a JSON array of strings, where each string is a relevant URL. Do not include any other text, explanations, or formatting (like markdown code fences). If no results are relevant, return an empty array:
+
+Example: ["https://example.com/relevant-page1", "https://example.com/relevant-page2"]
+
+Search Results:\n\n`;
+
+            searchMetadata.forEach((res, index) => {
+                // Modified to only include Title and URL
+                metadataPrompt += `Result ${index + 1}:\nTitle: ${res.title}\nURL: ${res.url}\n\n`;
+            });
+
+            try {
+                const reply = await engine.chat.completions.create({
+                    messages: [
+                        {
+                            role: "system",
+                            content: `You are an expert research assistant, tasked with filtering web search results for maximum relevance to a user's general question. You are precise and only output valid JSON. Do NOT include markdown code fences (like \`\`\`json) or any other text outside the JSON array.`
+                        },
+                        { role: "user", content: metadataPrompt }
+                    ],
+                    temperature: 0.1, // Keep temperature low for structured output
+                    max_tokens: 300, // Enough for a JSON array of URLs
+                    stream: false
+                });
+
+                let content = reply.choices?.[0]?.message?.content || "[]";
+                // Attempt to remove markdown code fences if they are present
+                content = content.replace(/```json\s*|```\s*/g, '').trim(); 
+                
+                try {
+                    const relevantUrls = JSON.parse(content);
+                    if (Array.isArray(relevantUrls) && relevantUrls.every(url => typeof url === 'string')) {
+                        console.log("LLM identified relevant URLs:", relevantUrls);
+                        return relevantUrls;
+                    } else {
+                        console.warn("LLM returned malformed JSON for relevant URLs:", content);
+                        return [];
+                    }
+                } catch (parseError) {
+                    console.error("Failed to parse LLM's relevant URLs JSON:", parseError, "Content:", content);
+                    return [];
+                }
+
+            } catch (error) {
+                console.error('Error during LLM relevance filtering:', error);
+                return []; // Return empty array on error
+            }
+        }
+
+        /**
+         * Fetches the full HTML content of a given URL (via proxy), extracts main text,
+         * and then uses LLM to summarize it based on the user's question.
+         * @param {string} url - The URL of the page to fetch.
+         * @param {string} userQuestion - The original user's question for summarization context.
+         * @returns {Promise<Object|null>} - An object with { url, title, content } (summarized) or null if failed or irrelevant.
+         */
+        async function fetchAndParsePageContent(url, userQuestion) {
+            const MAX_RAW_CONTENT_LENGTH = 5000; // Max raw content to send to summarization LLM
+            const MIN_SUMMARY_LENGTH = 50; // Minimum length for a useful summary
+
+            for (const proxyUrl of proxies) {
+                try {
+                    const controller = new AbortController();
+                    const id = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+
+                    const response = await fetch(proxyUrl + encodeURIComponent(url), {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                        },
+                        signal: controller.signal
+                    });
+                    clearTimeout(id);
+
+                    if (!response.ok) {
+                        if (response.status === 404) {
+                            console.warn(`[Content Fetch] Page not found (404) for ${url} via ${proxyUrl}. Skipping.`);
+                        } else {
+                            console.warn(`[Content Fetch] Response from ${proxyUrl} was not OK: ${response.status} ${response.statusText}`);
+                        }
+                        continue;
+                    }
+
+                    let data;
+                    const contentType = response.headers.get('content-type') || '';
+
+                    if (contentType.includes('application/json')) {
+                        data = await response.json();
+                        data = data.contents;
+                    } else {
+                        data = await response.text();
+                    }
+
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(data, 'text/html');
+
+                    // Extract main content from common elements
+                    let pageContent = '';
+                    const contentSelectors = [
+                        'main', '.main-content', '#content', 'article', '.article-body', '.entry-content',
+                        'div.post-content', 'div.body', 'div.page-content', 'p' // Fallback to paragraphs
+                    ];
+
+                    for (const selector of contentSelectors) {
+                        const element = doc.querySelector(selector);
+                        if (element && element.textContent) {
+                            // Simple text extraction, stripping excessive whitespace
+                            pageContent = element.textContent.replace(/\s+/g, ' ').trim();
+                            if (pageContent.length > 100) break; // Found substantial content
+                        }
+                    }
+
+                    const pageTitle = doc.querySelector('title')?.textContent?.trim() || url;
+
+                    if (pageContent.length > MIN_SUMMARY_LENGTH) {
+                        // Truncate raw content if too long for the LLM context window
+                        const rawContentToSummarize = pageContent.slice(0, MAX_RAW_CONTENT_LENGTH);
+
+                        const summarizedContent = await summarizeContent(userQuestion, rawContentToSummarize);
+
+                        if (summarizedContent && summarizedContent.length > MIN_SUMMARY_LENGTH) {
+                            return { url: url, title: pageTitle, content: summarizedContent };
+                        } else {
+                            console.warn(`[Content Fetch] Summarization resulted in too short or empty content for ${url}.`);
+                        }
+                    } else {
+                        console.log(`[Content Fetch] Page content too short for meaningful summarization (${pageContent.length} chars) for ${url}.`);
+                    }
+
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        console.warn(`[Content Fetch] Fetching ${url} with proxy ${proxyUrl} timed out.`);
+                    } else {
+                        console.error(`[Content Fetch] Failed to fetch or parse content from ${url} via ${proxyUrl}:`, error);
+                    }
+                }
+            }
+            return null; // Return null if all proxies fail or content is not useful
+        }
+
+
+        /**
+         * Uses the LLM to summarize extracted web content based on the user's question.
+         * @param {string} userQuestion - The original user's question.
+         * @param {string} extractedContent - The main text content extracted from a webpage.
+         * @returns {Promise<string>} - A concise summary of the content, or empty string.
+         */
+        async function summarizeContent(userQuestion, extractedContent) {
+            try {
+                const summaryPrompt = `The user asked: "${userQuestion}"
+
+Below is content extracted from a webpage. Read this content carefully and provide a concise summary that directly addresses the user's question. Focus on the most relevant information. If the content does not contain information relevant to the question, state that clearly.
+
+Content:
+"""
+${extractedContent}
+"""
+
+Concise Summary:`;
+
+                const reply = await engine.chat.completions.create({
+                    messages: [
+                        {
+                            role: "system",
+                            content: "You are an expert summarization AI. Your goal is to provide accurate, concise, and relevant summaries of web content, directly answering the user's question based *only* on the provided text."
+                        },
+                        { role: "user", content: summaryPrompt }
+                    ],
+                    temperature: 0.1, // Low temperature for factual summarization
+                    max_tokens: 500, // Sufficient for a concise summary
+                    stream: false
+                });
+
+                return reply.choices?.[0]?.message?.content || "";
+
+            } catch (error) {
+                console.error('Error during LLM summarization:', error);
+                return "";
+            }
+        }
+
+
+        /**
+         * Orchestrates the research process: generates search terms, performs search,
+         * filters results, fetches content, and summarizes relevant pages.
+         * @param {string} userQuestion - The original question from the user.
+         * @returns {Promise<Array<Object>>} - An array of { url, title, content } for each relevant summarized page.
+         */
+        async function performResearch(userQuestion) {
+            appendMessage('research', 'Generating search terms...');
+            const searchTerms = await generateSearchTerms(userQuestion);
+            if (searchTerms.length === 0) {
+                appendMessage('research', 'Could not generate effective search terms.');
+                return [];
+            }
+            appendMessage('research', `Searching for: ${searchTerms.map(t => `"${t}"`).join(', ')}`);
+
+            const allMetadata = [];
+            for (const term of searchTerms) {
+                const results = await searchAndExtractMetadata(term);
+                allMetadata.push(...results);
+            }
+            
+            // Remove duplicates based on URL
+            const uniqueMetadata = Array.from(new Map(allMetadata.map(item => [item.url, item])).values());
+            if (uniqueMetadata.length === 0) {
+                appendMessage('research', 'No relevant web results found.');
+                return [];
+            }
+
+            appendMessage('research', `Found ${uniqueMetadata.length} potential results. Filtering relevant ones...`);
+            const relevantUrls = await filterRelevantResults(userQuestion, uniqueMetadata);
+
+            if (relevantUrls.length === 0) {
+                appendMessage('research', 'No highly relevant results identified after filtering.');
+                return [];
+            }
+
+            appendMessage('research', `Fetching and summarizing content from ${relevantUrls.length} relevant pages...`);
+            const fetchedContents = [];
+            for (const url of relevantUrls.slice(0, 3)) { // Limit to processing top 3 relevant pages
+                const content = await fetchAndParsePageContent(url, userQuestion);
+                if (content) {
+                    fetchedContents.push(content);
+                }
+            }
+
+            if (fetchedContents.length === 0) {
+                appendMessage('research', 'Failed to retrieve useful content from relevant pages.');
+                return [];
+            }
+            appendMessage('research', `Summarized ${fetchedContents.length} sources.`);
+            return fetchedContents;
+        }
+
+        /**
+         * Formulates the final prompt for the LLM, including research context if available,
+         * and then streams the AI's response.
+         * @param {string} userQuestion - The user's original question.
+         * @param {Array<Object>} researchData - Array of research results ({ url, title, content }).
+         */
+        async function getAIResponse(userQuestion, researchData) {
+            const systemPrompt = `You are a helpful and knowledgeable AI Assistant.
+            Your goal is to answer user questions comprehensively and accurately.
+            Use the provided "RESEARCH_CONTEXT" if available to inform your answers.
+            If the question is about current events or requires up-to-date information, prioritize information from the research context.
+            If the research context is not relevant or insufficient, answer based on your general knowledge.
+            Always maintain a friendly and informative tone.
+            If you use information from the RESEARCH_CONTEXT, clearly reference the sources by their title and URL in your answer.
+            Do not make up information or provide medical/legal/financial advice.
+            Current date and time context: ${dateContext}`;
+
+            let researchContext = "";
+            const sourcesForDisplay = [];
+
+            if (researchData && researchData.length > 0) {
+                researchContext += "RESEARCH_CONTEXT:\n\n";
+                researchData.forEach((data, index) => {
+                    researchContext += `Source ${index + 1} (Title: ${data.title}, URL: ${data.url}):\n`;
+                    researchContext += `${data.content}\n\n`;
+                    sourcesForDisplay.push({ title: data.title, url: data.url, engine: 'Web Research' });
+                });
+            } else {
+                researchContext = "RESEARCH_CONTEXT: No specific research data found or relevant.\n\n";
+            }
+
+            const messages = [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: researchContext + userQuestion }
+            ];
+
+            const aiMessageDiv = appendMessage('ai', ''); // Create an empty message div for streaming
+            let fullAIResponse = "";
+
+            try {
+                const reply = await engine.chat.completions.create({
+                    messages: messages,
+                    temperature: 0.7, // A bit more creative for general questions
+                    max_tokens: 1000,
+                    stream: false // Changed to false
+                });
+
+                fullAIResponse = reply.choices?.[0]?.message?.content || "";
+                aiMessageDiv.querySelector('span').textContent = fullAIResponse; // Update the content once
+                chatContainer.scrollTop = chatContainer.scrollHeight; // Keep scrolling to bottom
+
+                if (sourcesForDisplay.length > 0) {
+                    // Update the displayed message to include sources at the end
+                    aiMessageDiv.innerHTML = `<strong class="text-neutral-800">AI Assistant:</strong> <span class="text-neutral-800">${fullAIResponse}</span>`;
+                    let sourcesHtml = '<div class="mt-3 pt-3 border-t border-neutral-200 text-xs text-neutral-600">';
+                    sourcesHtml += '<strong>Sources:</strong><br>';
+                    sourcesForDisplay.forEach((source, index) => {
+                        sourcesHtml += `<span class="block mt-1">${index + 1}. <a href="${source.url}" target="_blank" rel="noopener noreferrer" class="text-primary-600 hover:underline">${source.title || source.url}</a> (${source.engine})</span>`;
+                    });
+                    sourcesHtml += '</div>';
+                    aiMessageDiv.innerHTML += sourcesHtml;
+                }
+
+                chatHistory.push({ role: "user", content: userQuestion });
+                chatHistory.push({ role: "ai", content: fullAIResponse });
+
+            } catch (error) {
+                console.error("Error generating AI response:", error); // Changed error message
+                const errorMessage = "Sorry, I encountered an error while generating my response.";
+                aiMessageDiv.querySelector('span').textContent = fullAIResponse + errorMessage;
+                chatHistory.push({ role: "user", content: userQuestion });
+                chatHistory.push({ role: "ai", content: fullAIResponse + errorMessage });
+            } finally {
+                input.disabled = false;
+                sendBtn.disabled = false;
+                loadingSpinner.classList.add("hidden");
+                input.focus();
+                input.style.height = 'auto'; // Reset height
+            }
+        }
+
+
+        // Event Listeners
+        sendBtn.addEventListener("click", async () => {
+            const userQuestion = input.value.trim();
+            if (userQuestion) {
+                appendMessage('user', userQuestion);
+                input.value = "";
+                input.disabled = true;
+                sendBtn.disabled = true;
+                loadingSpinner.classList.remove("hidden");
+                statusDiv.textContent = "🧠 AI is thinking...";
+
+                let researchData = [];
+                // Only perform research if the toggle is checked AND AI decides it's needed
+                if (researchToggle.checked) {
+                    statusDiv.textContent = "🤔 AI is determining research needs...";
+                    const needsResearch = await shouldPerformResearch(userQuestion);
+                    if (needsResearch) {
+                        statusDiv.textContent = "🌐 Performing web research...";
+                        researchData = await performResearch(userQuestion);
+                    } else {
+                        appendMessage('system', 'AI determined no web research is needed. Responding from internal knowledge.');
+                    }
+                } else {
+                    appendMessage('system', 'Web research is disabled by user. Responding from internal knowledge.');
+                }
+
+                statusDiv.textContent = "✨ Generating AI response...";
+                await getAIResponse(userQuestion, researchData);
+                statusDiv.textContent = "✅ Ready for your next question!";
+            }
+        });
+
+        input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                sendBtn.click();
+            }
+        });
+
+        // Initialize on window load
+        window.onload = initChatEngine;
+
+    </script>
+</body>
+</html>
