@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phi-3 Chat with Smart Research</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 80vh; /* Make container take more vertical space */
+            max-height: 90vh; /* Limit max height */
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .controls {
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .research-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #495057;
+        }
+
+        .research-toggle input[type="checkbox"] {
+            transform: scale(1.2);
+            cursor: pointer;
+        }
+
+        #status {
+            padding: 15px 20px;
+            background: #e3f2fd;
+            border-bottom: 1px solid #bbdefb;
+            color: #1565c0;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        #chat-container {
+            flex-grow: 1; /* Allow chat container to fill available space */
+            overflow-y: auto;
+            padding: 20px;
+            background: #fafafa;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            line-height: 1.5;
+            word-wrap: break-word; /* Ensure long words wrap */
+        }
+
+        .message.user {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            align-self: flex-end; /* Align user messages to the right */
+            max-width: 80%; /* Limit width of user messages */
+        }
+
+        .message.bot {
+            background: #e8f5e8;
+            border-left: 4px solid #4caf50;
+            align-self: flex-start; /* Align bot messages to the left */
+            max-width: 80%; /* Limit width of bot messages */
+        }
+
+        .message.research {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            font-size: 14px;
+            align-self: flex-start;
+            max-width: 95%;
+        }
+
+        .message.system {
+            background: #f3e5f5;
+            border-left: 4px solid #9c27b0;
+            font-style: italic;
+            align-self: center;
+            text-align: center;
+            max-width: 95%;
+        }
+
+        .research-sources {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #ddd;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .research-sources a {
+            color: #1976d2;
+            text-decoration: none;
+        }
+
+        .research-sources a:hover {
+            text-decoration: underline;
+        }
+        
+        .trusted-source {
+            color: #388e3c;
+            font-weight: 500;
+        }
+        
+        .reliable-source {
+            color: #1976d2;
+        }
+
+        .input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            gap: 12px;
+            align-items: end;
+        }
+
+        #userInput {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 20px;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        #userInput:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        #sendBtn {
+            padding: 12px 24px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        #sendBtn:hover:not(:disabled) {
+            background: #45a049;
+        }
+
+        #sendBtn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Media Queries for responsiveness */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            .container {
+                min-height: 95vh;
+                max-height: 95vh;
+            }
+            .header h1 {
+                font-size: 20px;
+            }
+            .controls {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+                padding: 10px 15px;
+            }
+            .research-toggle {
+                font-size: 13px;
+            }
+            .input-area {
+                flex-direction: column;
+                gap: 10px;
+                padding: 15px;
+            }
+            #sendBtn {
+                width: 100%;
+                padding: 10px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Phi-3 Chat with Smart Research</h1>
+        </div>
+        
+        <div class="controls">
+            <label class="research-toggle">
+                <input type="checkbox" id="researchToggle" checked>
+                🔍 Enable web research for current topics
+            </label>
+        </div>
+
+        <div id="status">🔄 Initializing...</div>
+        
+        <div id="chat-container"></div>
+        
+        <div class="input-area">
+            <textarea id="userInput" placeholder="Ask me anything..." disabled rows="1"></textarea>
+            <button id="sendBtn" disabled>Send</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as webllm from "https://esm.run/@mlc-ai/web-llm@0.2.46";
+
+        let engine;
+        const chatContainer = document.getElementById("chat-container");
+        const status = document.getElementById("status");
+        const input = document.getElementById("userInput");
+        const sendBtn = document.getElementById("sendBtn");
+        const researchToggle = document.getElementById("researchToggle");
+        
+        // Current date information for context awareness
+        const currentDate = new Date();
+        const dateOptions = { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        };
+        const currentDateString = currentDate.toLocaleDateString(undefined, dateOptions);
+        const currentTimeString = currentDate.toLocaleTimeString();
+        const currentTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const dateContext = `Current date: ${currentDateString}\nCurrent time: ${currentTimeString}\nTimezone: ${currentTimezone}`;
+
+        // Chat history to maintain context for the LLM
+        let chatHistory = [];
+
+        /**
+         * Appends a message to the chat display.
+         * @param {string} role - The role of the message sender (user, bot, research, system).
+         * @param {string} text - The content of the message.
+         * @param {Array<Object>} [sources=null] - Optional array of source objects ({title, url}).
+         */
+        function appendMessage(role, text, sources = null) {
+            const div = document.createElement("div");
+            div.className = `message ${role}`;
+            
+            let content = `<strong>${role === "user" ? "You" : role === "bot" ? "Phi‑3" : role === "research" ? "🔍 Research" : "System"}:</strong> ${text}`;
+            
+            if (sources && sources.length > 0) {
+                content += '<div class="research-sources"><strong>Sources:</strong><br>';
+                sources.forEach((source, index) => {
+                    content += `${index + 1}. <a href="${source.url}" target="_blank" rel="noopener noreferrer">${source.title || source.url}</a><br>`;
+                });
+                content += '</div>';
+            }
+            
+            div.innerHTML = content;
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return div;
+        }
+
+        /**
+         * Generates search terms based on the user's question and query type.
+         * Uses the LLM to create targeted search queries.
+         * @param {string} userQuestion - The question asked by the user.
+         * @returns {Promise<Array<string>>} - An array of generated search terms.
+         */
+        async function generateSearchTerms(userQuestion) {
+            try {
+                // First, detect the type of query to generate more targeted search terms
+                const queryType = await detectQueryType(userQuestion);
+                
+                const searchTermPrompt = `Given this user question: "${userQuestion}"
+
+I've identified this as a ${queryType} type query. Generate 3-5 highly effective search terms that will find the most current, relevant, and comprehensive information.
+
+Advanced Search Term Generation Rules:
+- Create a mix of search terms with different approaches
+- Include at least one very specific term with technical/domain terminology
+- Include one broader contextual term to capture related concepts
+- For time-sensitive topics, include explicit time references ${dateContext}
+- For data-heavy topics, include terms like "statistics", "data", "analysis"
+- For comparison queries, include terms with "vs", "compared to", "difference between"
+- For technical topics, include specific version numbers or technologies
+- For location-based queries, include geographic specificity
+
+Format as a simple list, one search term per line:`;
+
+                const reply = await engine.chat.completions.create({
+                    messages: [
+                        { 
+                            role: "system", 
+                            content: "You are an expert search strategist who understands how to craft optimal search terms for different types of information needs. You excel at creating search approaches to ensure comprehensive results while keeping them concise and on target completely." 
+                        },
+                        { role: "user", content: searchTermPrompt }
+                    ],
+                    temperature: 0.2,
+                    max_tokens: 150,
+                    stream: false
+                });
+
+                const content = reply.choices?.[0]?.message?.content || "";
+                
+                // Extract and clean search terms
+                const searchTerms = content.split('\n')
+                    .map(term => term.trim())
+                    .filter(term => term.length > 0 && !term.includes(':') && term.length < 60)
+                    .slice(0, 5); // Get up to 5 terms for more comprehensive search
+
+                // Add the original question as a fallback if needed
+                if (searchTerms.length < 2) {
+                    searchTerms.push(userQuestion);
+                    
+                    // Also add a simplified version of the question (first 5-7 words)
+                    const simplifiedQuestion = userQuestion.split(' ').slice(0, 6).join(' ');
+                    if (simplifiedQuestion !== userQuestion) {
+                        searchTerms.push(simplifiedQuestion);
+                    }
+                }
+
+                return searchTerms;
+            } catch (error) {
+                console.error('Error generating search terms:', error);
+                // Fallback to a simplified version of the original question if LLM fails
+                return [userQuestion.split(' ').slice(0, 5).join(' ')];
+            }
+        }
+        
+        /**
+         * Detects the type of query to better inform search term generation and content extraction.
+         * Uses the LLM to classify the query.
+         * @param {string} question - The user's question.
+         * @returns {Promise<string>} - The detected query type category.
+         */
+        async function detectQueryType(question) {
+            try {
+                const typePrompt = `Analyze this user question and classify it into EXACTLY ONE of these categories:
+"news" - Current events, breaking news, recent developments
+"technical" - Programming, technology, software, hardware questions
+"scientific" - Science, research, academic topics
+"historical" - Past events, history, evolution of topics
+"comparison" - Comparing multiple items, versus queries
+"how-to" - Instructions, tutorials, guides
+"definition" - Meaning of terms, concepts, explanations
+"data" - Statistics, numbers, trends, analysis
+"opinion" - Subjective topics, reviews, recommendations
+"factual" - Objective information, facts, specifications
+"location" - Geographic, place-based queries
+"person" - About specific individuals, biographies
+"product" - Consumer goods, services, offerings
+"entertainment" - Movies, music, games, media
+"health" - Medical, wellness, fitness topics
+"financial" - Money, investing, business, economics
+"philosophical" - Ethics, meaning, existence, consciousness
+"cultural" - Traditions, customs, social practices, arts
+"environmental" - Climate, ecology, sustainability, conservation
+"legal" - Laws, regulations, rights, court cases
+"educational" - Learning, teaching, academic institutions
+"political" - Government, policy, elections, international relations
+"psychological" - Mental processes, behavior, emotions
+"linguistic" - Language, communication, translation
+"mathematical" - Numbers, calculations, proofs, theorems
+"religious" - Faith, spirituality, beliefs, practices
+"agricultural" - Farming, crops, livestock, food production
+"architectural" - Buildings, design, urban planning
+"automotive" - Vehicles, transportation, mobility
+"culinary" - Food, cooking, recipes, gastronomy
+"fashion" - Clothing, style, design, trends
+"sports" - Athletics, games, competitions, fitness
+
+Question: "${question}"
+
+Category:`;
+
+                const reply = await engine.chat.completions.create({
+                    messages: [
+                        { role: "system", content: "You are a query classification expert. Respond with ONLY the single best category name." },
+                        { role: "user", content: typePrompt }
+                    ],
+                    temperature: 0.1,
+                    max_tokens: 20,
+                    stream: false
+                });
+
+                let queryType = reply.choices?.[0]?.message?.content || "";
+                queryType = queryType.trim().toLowerCase().replace(/[^a-z-]/g, '');
+                
+                // Validate the response is one of our expected categories
+                const validTypes = ['news', 'technical', 'scientific', 'historical', 'comparison', 
+                                    'how-to', 'definition', 'data', 'opinion', 'factual', 
+                                    'location', 'person', 'product', 'entertainment', 'health', 'financial',
+                                    'philosophical', 'cultural', 'environmental', 'legal', 'educational',
+                                    'political', 'psychological', 'linguistic', 'mathematical', 'religious',
+                                    'agricultural', 'architectural', 'automotive', 'culinary', 'fashion', 'sports'];
+                
+                if (!validTypes.includes(queryType)) {
+                    queryType = 'factual'; // Default fallback
+                }
+                
+                return queryType;
+            } catch (error) {
+                console.error('Error detecting query type:', error);
+                return 'factual'; // Default fallback
+            }
+        }
+
+        /**
+         * Performs a web search across multiple engines using proxies.
+         * @param {string} query - The search query.
+         * @param {string} queryType - The detected type of the query.
+         * @returns {Promise<Array<Object>>} - An array of search result objects ({title, snippet, url, searchTerm, engine}).
+         */
+        async function searchMultiEngine(query, queryType) {
+            const results = [];
+            const searchEngines = [
+                { name: 'duckduckgo', url: `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}` },
+                { name: 'qwant', url: `https://lite.qwant.com/?q=${encodeURIComponent(query)}&t=web` },
+                { name: 'brave', url: `https://search.brave.com/search?q=${encodeURIComponent(query)}&source=web` }
+            ];
+            
+            // Add specialized search engines based on query type for better targeting
+            if (queryType === 'technical' || queryType === 'how-to') {
+                searchEngines.push({ 
+                    name: 'stackoverflow', 
+                    url: `https://stackoverflow.com/search?q=${encodeURIComponent(query)}` 
+                });
+                searchEngines.push({ 
+                    name: 'github', 
+                    url: `https://github.com/search?q=${encodeURIComponent(query)}&type=repositories` 
+                });
+            } else if (queryType === 'scientific' || queryType === 'data') {
+                searchEngines.push({ 
+                    name: 'scholar', 
+                    url: `https://scholar.google.com/scholar?q=${encodeURIComponent(query)}` 
+                });
+                searchEngines.push({ 
+                    name: 'arxiv', 
+                    url: `https://arxiv.org/search/?query=${encodeURIComponent(query)}` 
+                });
+            } else if (queryType === 'news') {
+                searchEngines.push({ 
+                    name: 'news', 
+                    url: `https://news.google.com/search?q=${encodeURIComponent(query)}` 
+                });
+                searchEngines.push({ 
+                    name: 'reuters', 
+                    url: `https://www.reuters.com/search/news?blob=${encodeURIComponent(query)}` 
+                });
+            } else if (queryType === 'product') {
+                searchEngines.push({ 
+                    name: 'amazon', 
+                    url: `https://www.amazon.com/s?k=${encodeURIComponent(query)}` 
+                });
+            } else if (queryType === 'health') {
+                searchEngines.push({ 
+                    name: 'nih', 
+                    url: `https://search.nih.gov/search?utf8=%E2%9C%93&affiliate=nih&query=${encodeURIComponent(query)}` 
+                });
+                searchEngines.push({ 
+                    name: 'mayoclinic', 
+                    url: `https://www.mayoclinic.org/search/search-results?q=${encodeURIComponent(query)}` 
+                });
+            } else if (queryType === 'philosophical') {
+                searchEngines.push({ 
+                    name: 'stanford', 
+                    url: `https://plato.stanford.edu/search/searcher.py?query=${encodeURIComponent(query)}` 
+                });
+            } else if (queryType === 'legal') {
+                searchEngines.push({ 
+                    name: 'cornell', 
+                    url: `https://www.law.cornell.edu/search/site/${encodeURIComponent(query)}` 
+                });
+            } else if (queryType === 'educational') {
+                searchEngines.push({ 
+                    name: 'khan', 
+                    url: `https://www.khanacademy.org/search?page_search_query=${encodeURIComponent(query)}` 
+                });
+            } else if (queryType === 'political') {
+                searchEngines.push({ 
+                    name: 'politico', 
+                    url: `https://www.politico.com/search?q=${encodeURIComponent(query)}` 
+                });
+            } else if (queryType === 'environmental') {
+                searchEngines.push({ 
+                    name: 'epa', 
+                    url: `https://www.epa.gov/search-results?search=${encodeURIComponent(query)}` 
+                });
+            } else if (queryType === 'sports') {
+                searchEngines.push({ 
+                    name: 'espn', 
+                    url: `https://www.espn.com/search/_/q/${encodeURIComponent(query)}` 
+                });
+            }
+            
+            // List of public CORS proxies to try
+            const proxies = [
+                'https://api.allorigins.win/get?url=',
+                'https://corsproxy.io/?',
+                'https://api.codetabs.com/v1/proxy?quest=',
+                // 'https://cors-anywhere.herokuapp.com/', // Often rate-limited or blocked
+                // 'https://crossorigin.me/' // Often down
+            ];
+            
+            // Try each search engine with each proxy until we get results
+            for (const engine of searchEngines) {
+                if (results.length >= 8) break; // Stop if we already have enough results from various engines
+                
+                for (const proxyUrl of proxies) {
+                    try {
+                        console.log(`Searching ${engine.name} with proxy: ${proxyUrl}`);
+                        const controller = new AbortController();
+                        const id = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+
+                        const response = await fetch(proxyUrl + encodeURIComponent(engine.url), {
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                            },
+                            signal: controller.signal // Apply timeout
+                        });
+                        clearTimeout(id); // Clear timeout if fetch completes
+
+                        if (!response.ok) {
+                            console.warn(`Response from ${engine.name} via ${proxyUrl} was not OK: ${response.status}`);
+                            continue;
+                        }
+                        
+                        let data;
+                        const contentType = response.headers.get('content-type') || '';
+                        
+                        if (contentType.includes('application/json')) {
+                            data = await response.json();
+                            if (!data.contents) {
+                                console.warn(`JSON response from ${proxyUrl} has no 'contents' field.`);
+                                continue;
+                            }
+                            data = data.contents; // allorigins.win wraps content in 'contents'
+                        } else {
+                            data = await response.text();
+                        }
+                        
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(data, 'text/html');
+                        
+                        // Extract search results with engine-specific selectors
+                        const engineResults = await extractSearchResults(doc, engine.name, query);
+                        
+                        if (engineResults.length > 0) {
+                            console.log(`Found ${engineResults.length} results from ${engine.name}`);
+                            results.push(...engineResults);
+                            break; // Success with this engine, move to the next search term
+                        }
+                        
+                    } catch (proxyError) {
+                        if (proxyError.name === 'AbortError') {
+                            console.log(`${engine.name} search with ${proxyUrl} timed out.`);
+                        } else {
+                            console.log(`${engine.name} search with ${proxyUrl} failed:`, proxyError.message);
+                        }
+                        continue;
+                    }
+                }
+            }
+            
+            // Deduplicate results by URL
+            const uniqueResults = [];
+            const seenUrls = new Set();
+            
+            for (const result of results) {
+                if (!seenUrls.has(result.url)) {
+                    seenUrls.add(result.url);
+                    uniqueResults.push(result);
+                }
+            }
+            
+            // If we still don't have enough results, add fallbacks (generic, reliable sites)
+            if (uniqueResults.length < 3) {
+                console.log('Adding fallback results based on query type');
+                const fallbackResults = generateFallbackResults(query, queryType); // No need for await here if synchronous
+                
+                for (const result of fallbackResults) {
+                    if (!seenUrls.has(result.url)) {
+                        seenUrls.add(result.url);
+                        uniqueResults.push(result);
+                    }
+                }
+            }
+            
+            return uniqueResults;
+        }
+        
+        /**
+         * Extracts search results (title, snippet, URL) from a parsed HTML document.
+         * Uses engine-specific CSS selectors for more accurate parsing.
+         * @param {Document} doc - The parsed HTML document.
+         * @param {string} engineName - The name of the search engine.
+         * @param {string} query - The original search query.
+         * @returns {Array<Object>} - An array of extracted result objects.
+         */
+        async function extractSearchResults(doc, engineName, query) {
+            const results = [];
+            let resultElements = [];
+            
+            // Engine-specific selectors
+            if (engineName === 'duckduckgo') {
+                const selectors = ['.result', '.web-result', '.result__body', '.results_links'];
+                for (const selector of selectors) {
+                    resultElements = doc.querySelectorAll(selector);
+                    if (resultElements.length > 0) break;
+                }
+                
+                for (let i = 0; i < Math.min(5, resultElements.length); i++) {
+                    const result = resultElements[i];
+                    
+                    const titleSelectors = ['.result__title a', '.result__a', 'h3 a', '.title a', '.result__url'];
+                    const snippetSelectors = ['.result__snippet', '.result__body', '.snippet', '.description'];
+                    
+                    let titleElement, snippetElement, title, snippet, url;
+                    
+                    for (const titleSel of titleSelectors) {
+                        titleElement = result.querySelector(titleSel);
+                        if (titleElement) break;
+                    }
+                    
+                    for (const snippetSel of snippetSelectors) {
+                        snippetElement = result.querySelector(snippetSel);
+                        if (snippetElement) break;
+                    }
+                    
+                    if (titleElement) {
+                        title = titleElement.textContent?.trim();
+                        url = titleElement.href || titleElement.getAttribute('href');
+                        
+                        // Clean up DuckDuckGo redirect URLs
+                        if (url && url.includes('/l/?uddg=')) {
+                            try {
+                                const urlParams = new URLSearchParams(url.split('?')[1]);
+                                url = decodeURIComponent(urlParams.get('uddg') || url);
+                            } catch (e) {
+                                // Keep original URL if parsing fails
+                                console.warn('Failed to parse DuckDuckGo redirect URL:', e);
+                            }
+                        }
+                    }
+                    
+                    snippet = snippetElement ? snippetElement.textContent?.trim() : '';
+                    
+                    if (title && url && !url.includes('duckduckgo.com')) { // Avoid internal DDG links
+                        results.push({
+                            title: title,
+                            snippet: snippet || 'No description available',
+                            url: url,
+                            searchTerm: query,
+                            engine: engineName
+                        });
+                    }
+                }
+            } else if (engineName === 'qwant') {
+                const selectors = ['.result', '.web-result', '.result-item', '.results__item'];
+                for (const selector of selectors) {
+                    resultElements = doc.querySelectorAll(selector);
+                    if (resultElements.length > 0) break;
+                }
+                
+                for (let i = 0; i < Math.min(5, resultElements.length); i++) {
+                    const result = resultElements[i];
+                    
+                    const titleSelectors = ['.result__title', '.result-title', 'h3 a', '.title'];
+                    const snippetSelectors = ['.result__desc', '.result-snippet', '.snippet', '.description'];
+                    const urlSelectors = ['.result__url', '.result-url', '.url'];
+                    
+                    let title, snippet, url;
+                    
+                    // Extract title
+                    for (const titleSel of titleSelectors) {
+                        const element = result.querySelector(titleSel);
+                        if (element) {
+                            title = element.textContent?.trim();
+                            const linkElement = element.tagName === 'A' ? element : element.querySelector('a');
+                            if (linkElement) {
+                                url = linkElement.href || linkElement.getAttribute('href');
+                            }
+                            break;
+                        }
+                    }
+                    
+                    // Extract snippet
+                    for (const snippetSel of snippetSelectors) {
+                        const element = result.querySelector(snippetSel);
+                        if (element) {
+                            snippet = element.textContent?.trim();
+                            break;
+                        }
+                    }
+                    
+                    // If we didn't get URL from title, try URL selectors
+                    if (!url) {
+                        for (const urlSel of urlSelectors) {
+                            const element = result.querySelector(urlSel);
+                            if (element) {
+                                url = element.textContent?.trim() || element.href || element.getAttribute('href');
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (title && url) {
+                        // Ensure URL is properly formatted
+                        if (!url.startsWith('http')) {
+                            url = 'https://' + url.replace(/^[/\\]+/, '');
+                        }
+                        
+                        results.push({
+                            title: title,
+                            snippet: snippet || 'No description available',
+                            url: url,
+                            searchTerm: query,
+                            engine: engineName
+                        });
+                    }
+                }
+            } else if (engineName === 'brave' || engineName === 'news' || engineName === 'scholar' || 
+                       engineName === 'stackoverflow' || engineName === 'github' || engineName === 'arxiv' ||
+                       engineName === 'amazon' || engineName === 'nih' || engineName === 'mayoclinic' ||
+                       engineName === 'stanford' || engineName === 'cornell' || engineName === 'khan' ||
+                       engineName === 'politico' || engineName === 'epa' || engineName === 'espn') {
+                // Generic extraction for other engines
+                const articleSelectors = ['article', '.result', '.g', '.web-result', '.result-item', '.search-result', '.srg .g', '.rc', '.news-card'];
+                const titleSelectors = ['h3 a', 'h2 a', '.title a', '.result-title a', '.result__title a', 'a[ping]'];
+                const snippetSelectors = ['.snippet', '.description', '.result-snippet', '.result__snippet', '.s', '.st'];
+                
+                // Try different article selectors
+                for (const selector of articleSelectors) {
+                    resultElements = doc.querySelectorAll(selector);
+                    if (resultElements.length > 0) break;
+                }
+                
+                // If no structured results found, try to find any links with surrounding text
+                if (resultElements.length === 0) {
+                    const links = doc.querySelectorAll('a[href^="http"]');
+                    for (const link of links) {
+                        // Filter out common irrelevant links (e.g., footers, navs, image links)
+                        if (link.textContent && link.textContent.length > 15 && 
+                            !link.closest('footer') && !link.closest('nav') && !link.querySelector('img')) {
+                            const url = link.href || link.getAttribute('href');
+                            const title = link.textContent.trim();
+                            
+                            // Try to find a snippet near the link
+                            let snippet = '';
+                            let parent = link.parentElement;
+                            // Search up to 3 parent levels for relevant text
+                            for (let i = 0; i < 3 && parent; i++) {
+                                // Exclude the title text from the snippet
+                                const text = parent.textContent.replace(title, '').trim(); 
+                                if (text.length > 40) { // Only take reasonably sized text
+                                    snippet = text.substring(0, 200); // Limit snippet length
+                                    break;
+                                }
+                                parent = parent.parentElement;
+                            }
+                            
+                            results.push({
+                                title: title,
+                                snippet: snippet || 'No description available',
+                                url: url,
+                                searchTerm: query,
+                                engine: engineName
+                            });
+                            
+                            if (results.length >= 5) break; // Limit number of fallback results
+                        }
+                    }
+                } else {
+                    // Process structured results
+                    for (let i = 0; i < Math.min(5, resultElements.length); i++) {
+                        const result = resultElements[i];
+                        let titleElement, title, snippet, url;
+                        
+                        // Find title and URL
+                        for (const selector of titleSelectors) {
+                            titleElement = result.querySelector(selector);
+                            if (titleElement) {
+                                title = titleElement.textContent?.trim();
+                                url = titleElement.href || titleElement.getAttribute('href');
+                                break;
+                            }
+                        }
+                        
+                        // Find snippet
+                        for (const selector of snippetSelectors) {
+                            const snippetElement = result.querySelector(selector);
+                            if (snippetElement) {
+                                snippet = snippetElement.textContent?.trim();
+                                break;
+                            }
+                        }
+                        
+                        // If no specific snippet element, use the result text excluding the title
+                        if (!snippet && title) {
+                            const fullText = result.textContent?.trim();
+                            if (fullText) {
+                                // Attempt to remove title from full text to get better snippet
+                                snippet = fullText.replace(title, '').trim().substring(0, 200);
+                            }
+                        }
+                        
+                        if (title && url) {
+                            results.push({
+                                title: title,
+                                snippet: snippet || 'No description available',
+                                url: url,
+                                searchTerm: query,
+                                engine: engineName
+                            });
+                        }
+                    }
+                }
+            }
+            
+            return results;
+        }
+
+        /**
+         * Generates fallback search results (predefined reliable URLs) if dynamic search fails.
+         * @param {string} query - The original search query.
+         * @param {string} queryType - The detected type of the query.
+         * @returns {Array<Object>} - An array of fallback result objects.
+         */
+        function generateFallbackResults(query, queryType) {
+            const fallbackResults = [];
+            
+            // Generate relevant URLs based on query type and content
+            switch(queryType) {
+                case 'news':
+                    fallbackResults.push(
+                        {
+                            title: `Latest News: ${query}`,
+                            snippet: `Breaking news and current events about ${query}`,
+                            url: 'https://www.reuters.com/search/news?blob=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-news'
+                        },
+                        {
+                            title: `${query} - AP News Coverage`,
+                            snippet: `Comprehensive news coverage from Associated Press`,
+                            url: 'https://apnews.com/search?q=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-news'
+                        },
+                        {
+                            title: `${query} - BBC News`,
+                            snippet: `International news coverage from BBC`,
+                            url: 'https://www.bbc.com/news/search?q=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-news'
+                        }
+                    );
+                    break;
+                    
+                case 'technical':
+                    fallbackResults.push(
+                        {
+                            title: `${query} - Stack Overflow`,
+                            snippet: `Programming questions and answers related to ${query}`,
+                            url: 'https://stackoverflow.com/search?q=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-tech'
+                        },
+                        {
+                            title: `${query} - GitHub Repositories`,
+                            snippet: `Open source projects and code related to ${query}`,
+                            url: 'https://github.com/search?q=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-tech'
+                        },
+                        {
+                            title: `${query} - Developer Documentation`,
+                            snippet: `Technical documentation and references for ${query}`,
+                            url: 'https://devdocs.io/#q=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-tech'
+                        }
+                    );
+                    break;
+                    
+                case 'scientific':
+                    fallbackResults.push(
+                        {
+                            title: `${query} - Google Scholar`,
+                            snippet: `Academic papers and research on ${query}`,
+                            url: 'https://scholar.google.com/scholar?q=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-academic'
+                        },
+                        {
+                            title: `${query} - Research Papers`,
+                            snippet: `Scientific research and publications about ${query}`,
+                            url: 'https://www.sciencedirect.com/search?qs=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-academic'
+                        },
+                        {
+                            title: `${query} - arXiv Preprints`,
+                            snippet: `Latest scientific preprints and research papers`,
+                            url: 'https://arxiv.org/search/?query=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-academic'
+                        }
+                    );
+                    break;
+                    
+                case 'health':
+                    fallbackResults.push(
+                        {
+                            title: `${query} - Medical Information`,
+                            snippet: `Health information and medical resources about ${query}`,
+                            url: 'https://www.mayoclinic.org/search/search-results?q=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-health'
+                        },
+                        {
+                            title: `${query} - NIH Health Information`,
+                            snippet: `Trusted health information from the National Institutes of Health`,
+                            url: 'https://search.nih.gov/search?utf8=%E2%9C%93&affiliate=nih&query=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-health'
+                        },
+                        {
+                            title: `${query} - CDC Health Resources`,
+                            snippet: `Health information from the Centers for Disease Control`,
+                            url: 'https://search.cdc.gov/search/?query=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-health'
+                        }
+                    );
+                    break;
+                    
+                case 'financial':
+                    fallbackResults.push(
+                        {
+                            title: `${query} - Financial News`,
+                            snippet: `Financial news, market data, and analysis about ${query}`,
+                            url: 'https://www.bloomberg.com/search?query=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-finance'
+                        },
+                        {
+                            title: `${query} - Market Data`,
+                            snippet: `Stock prices, financial data, and market information for ${query}`,
+                            url: 'https://finance.yahoo.com/lookup?s=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-finance'
+                        },
+                        {
+                            title: `${query} - Wall Street Journal`,
+                            snippet: `Latest business and financial news from WSJ`,
+                            url: 'https://www.wsj.com/search?query=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-finance'
+                        }
+                    );
+                    break;
+
+                default: // General fallback for other types
+                    fallbackResults.push(
+                        {
+                            title: `${query} - Wikipedia`,
+                            snippet: `General information about ${query}`,
+                            url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(query.replace(/ /g, '_')),
+                            searchTerm: query,
+                            engine: 'fallback-general'
+                        },
+                        {
+                            title: `${query} - Britannica`,
+                            snippet: `Encyclopedic information about ${query}`,
+                            url: 'https://www.britannica.com/search?query=' + encodeURIComponent(query),
+                            searchTerm: query,
+                            engine: 'fallback-general'
+                        },
+                        {
+                            title: `${query} - DuckDuckGo`,
+                            snippet: `Search results for ${query}`,
+                            url: `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
+                            searchTerm: query,
+                            engine: 'fallback-general'
+                        }
+                    );
+                    break;
+            }
+            return fallbackResults;
+        }
+
+        /**
+         * Identifies key data points or keywords from a user's question to guide precise text extraction.
+         * @param {string} userQuestion - The user's original question.
+         * @returns {Promise<Array<string>>} - An array of keywords.
+         */
+        async function identifyKeywords(userQuestion) {
+            try {
+                const keywordPrompt = `Given the question: "${userQuestion}"
+Identify the 1-3 most crucial keywords, data points, or direct answer components that would be expected in a precise, factual answer.
+Focus on nouns, numbers, or very specific phrases that directly relate to the core information sought.
+Do NOT include common question words (what, who, where, when, how), articles (a, an, the), or prepositions (of, in, for).
+List them separated by commas.
+
+Examples:
+Question: "What is the capital of France?" -> Keywords: "capital, France"
+Question: "What is the population of Tokyo?" -> Keywords: "population, Tokyo"
+Question: "Who discovered penicillin?" -> Keywords: "discovered, penicillin"
+Question: "How tall is Mount Everest?" -> Keywords: "tall, Mount Everest"
+
+Keywords:`;
+
+                const reply = await engine.chat.completions.create({
+                    messages: [
+                        { role: "system", content: "You are an expert at identifying precise keywords for factual extraction." },
+                        { role: "user", content: keywordPrompt }
+                    ],
+                    temperature: 0.1, // Keep low for precise output
+                    max_tokens: 50,
+                    stream: false
+                });
+
+                const content = reply.choices?.[0]?.message?.content || "";
+                return content.split(',').map(k => k.trim()).filter(k => k.length > 0);
+            } catch (error) {
+                console.error('Error identifying keywords:', error);
+                return userQuestion.split(' ').slice(0, 3).map(word => word.replace(/[^\w\s]/gi, '')).filter(Boolean); // Fallback to first few words
+            }
+        }
+
+
+        /**
+         * Fetches content from a given URL and extracts relevant text using LLM.
+         * This function aims to get only the most pertinent information.
+         * @param {string} url - The URL to fetch content from.
+         * @param {string} userQuestion - The original question to guide extraction.
+         * @param {Array<string>} keywords - Keywords to filter content before LLM extraction.
+         * @returns {Promise<string>} - The extracted relevant text snippet.
+         */
+        async function fetchAndExtractRelevantText(url, userQuestion, keywords) {
+            try {
+                // Use a proxy to bypass CORS issues for fetching external content
+                const proxies = [
+                    'https://api.allorigins.win/get?url=',
+                    'https://corsproxy.io/?',
+                    'https://api.codetabs.com/v1/proxy?quest='
+                ];
+                let rawHtml = '';
+                for (const proxyUrl of proxies) {
+                    try {
+                        const controller = new AbortController();
+                        const id = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout for content fetch
+                        const response = await fetch(proxyUrl + encodeURIComponent(url), { signal: controller.signal });
+                        clearTimeout(id);
+
+                        if (!response.ok) {
+                            console.warn(`Proxy response from ${url} via ${proxyUrl} was not OK: ${response.status}`);
+                            continue;
+                        }
+
+                        const contentType = response.headers.get('content-type') || '';
+                        let data;
+                        if (contentType.includes('application/json')) {
+                            data = await response.json();
+                            rawHtml = data.contents; // allorigins.win wraps content in 'contents'
+                        } else {
+                            rawHtml = await response.text();
+                        }
+                        if (rawHtml) break; // If we got content, stop trying proxies
+                    } catch (proxyError) {
+                        if (proxyError.name === 'AbortError') {
+                            console.warn(`Content fetch from ${url} via ${proxyUrl} timed out.`);
+                        } else {
+                            console.warn(`Content fetch from ${url} via ${proxyUrl} failed:`, proxyError.message);
+                        }
+                    }
+                }
+
+                if (!rawHtml) {
+                    console.warn(`Could not fetch content from ${url} using any proxy.`);
+                    return 'Information not found in source.'; // Return specific message if no content could be fetched
+                }
+
+                // Parse the HTML to extract main textual content
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(rawHtml, 'text/html');
+                
+                let relevantTextSegments = [];
+                const contentSelectors = [
+                    'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', // Common text elements
+                    'div[class*="content"]', 'div[id*="main"]', 'article', 'main' // Main content containers
+                ];
+
+                // Prioritize content within common article/main elements first
+                let mainContentContainer = null;
+                for (const selector of ['article', 'main', 'div[class*="content"]', 'div[id*="main"]']) {
+                    mainContentContainer = doc.querySelector(selector);
+                    if (mainContentContainer) break;
+                }
+                // If no specific content container found, use body
+                if (!mainContentContainer) mainContentContainer = doc.body;
+
+                if (mainContentContainer) {
+                    for (const textElementSelector of ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li']) {
+                        mainContentContainer.querySelectorAll(textElementSelector).forEach(element => {
+                            if (!['script', 'style', 'noscript', 'head', 'footer', 'nav', 'aside'].includes(element.tagName.toLowerCase())) {
+                                const text = element.textContent?.trim();
+                                if (text && text.length > 20) { // Only consider meaningful text segments
+                                    // Check if any keyword is present in the text segment (case-insensitive)
+                                    const foundKeyword = keywords.some(kw => text.toLowerCase().includes(kw.toLowerCase()));
+                                    if (foundKeyword) {
+                                        relevantTextSegments.push(text);
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+
+                // If no keyword-matching segments found, take a few general text segments
+                if (relevantTextSegments.length === 0) {
+                     console.warn(`No keyword-matching segments found on ${url}. Taking general snippets.`);
+                     const generalTextElements = doc.querySelectorAll('p, h1, h2, h3, li');
+                     let generalCount = 0;
+                     for(const element of generalTextElements) {
+                        if (!['script', 'style', 'noscript', 'head', 'footer', 'nav', 'aside'].includes(element.tagName.toLowerCase())) {
+                            const text = element.textContent?.trim();
+                            if (text && text.length > 50) {
+                                relevantTextSegments.push(text);
+                                generalCount++;
+                                if (generalCount >= 5) break; // Limit general snippets
+                            }
+                        }
+                     }
+                }
+
+
+                const combinedRelevantContent = relevantTextSegments.join('\n\n');
+                
+                // Limit the content sent to the LLM to avoid exceeding context window
+                const maxLLMContextChars = 4000; // Adjusted for more focused extraction
+                let trimmedContent = combinedRelevantContent.substring(0, maxLLMContextChars);
+
+                if (!trimmedContent || trimmedContent.trim().length < 50) { // Also check if trimmed content is too short
+                    return 'Information not found in source.'; // No relevant content to extract
+                }
+
+                const extractionPrompt = `From the following text, extract ONLY the specific data point(s) or the single shortest sentence/paragraph that directly and factually answers the question: "${userQuestion}".
+Do NOT include any introductory phrases, conversational filler, or information not directly requested.
+If the exact information or data point(s) are not present in the provided text, respond ONLY with "Information not found in source.".
+
+Source Text:
+---
+${trimmedContent}
+---
+
+Extracted Relevant Information:`;
+
+                const reply = await engine.chat.completions.create({
+                    messages: [
+                        { role: "system", content: "You are a highly efficient information extractor. Your goal is to find the most direct and concise answer to the user's question from the provided text. Provide ONLY the specific data point(s) or the single shortest sentence/paragraph that contains the answer. Do not add introductory or concluding remarks. If you cannot find a direct answer, respond ONLY with 'Information not found in source.'." },
+                        { role: "user", content: extractionPrompt }
+                    ],
+                    temperature: 0.0, // Set temperature to 0 for maximum determinism and factual extraction
+                    max_tokens: 100, // Very small output limit for precise answers
+                    stream: false
+                });
+
+                return reply.choices?.[0]?.message?.content?.trim() || 'Information not found in source.';
+
+            } catch (error) {
+                console.error(`Error fetching or extracting from ${url}:`, error);
+                return 'Information not found in source.'; // Return specific message on error
+            }
+        }
+
+
+        // Event listener for sending messages
+        sendBtn.addEventListener("click", async () => {
+            const userText = input.value.trim();
+            if (userText === "") return;
+
+            // Add user message to chat history and display
+            appendMessage("user", userText);
+            chatHistory.push({ role: "user", content: userText });
+            
+            input.value = "";
+            input.rows = 1; // Reset textarea height
+            sendBtn.disabled = true;
+            input.disabled = true;
+            status.textContent = "Processing your request...";
+
+            try {
+                let finalBotResponse = "";
+                let sourcesForBotResponse = [];
+                let initialLLMResponse = "";
+
+                // Step 1: Ask LLM if research is needed
+                status.textContent = "🤔 Determining if web research is needed...";
+                // Create a temporary messages array for this specific decision call
+                const researchDecisionMessages = [
+                    { 
+                        role: "system", 
+                        content: "You are a smart assistant that decides if external web research is required for a given query. If the user has asked for something to be researched or for time dependant data or live info please simply reply with '[Research needed]'. Otherwise, provide a direct answer without mentioning research." 
+                    },
+                    { role: "user", content: userText }
+                ];
+
+                const researchDecisionCompletion = await engine.chat.completions.create({
+                    messages: researchDecisionMessages, // Use the temporary array
+                    temperature: 0.1,
+                    max_tokens: 50, // Keep output short
+                    stream: false
+                });
+                initialLLMResponse = researchDecisionCompletion.choices?.[0]?.message?.content?.trim() || '';
+
+                if (researchToggle.checked && initialLLMResponse === '[Research needed]') {
+                    appendMessage("system", "AI determined research is needed. Proceeding with web search...");
+
+                    status.textContent = "🔍 Identifying key data points for precise extraction...";
+                    let keywords = await identifyKeywords(userText); 
+                    if (keywords.length > 0) {
+                        appendMessage("system", `Identified keywords for precise extraction: ${keywords.join(', ')}`);
+                    } else {
+                        // Fallback for keywords if LLM fails, maybe just use parts of original query
+                        console.warn("Could not identify specific keywords for extraction. Using general terms from query.");
+                        keywords = userText.split(' ').slice(0, 3).map(word => word.replace(/[^\w\s]/gi, '')).filter(Boolean);
+                        appendMessage("system", `Falling back to general terms for extraction: ${keywords.join(', ')}`);
+                    }
+
+                    status.textContent = "🔍 Generating search terms...";
+                    const searchTerms = await generateSearchTerms(userText);
+                    appendMessage("system", `Generated search queries: ${searchTerms.join(', ')}`);
+
+                    let extractedResearchParts = [];
+                    let totalSourcesProcessed = 0;
+
+                    for (const term of searchTerms) {
+                        if (totalSourcesProcessed >= 3) break; 
+
+                        status.textContent = `🌐 Searching the web for: "${term}"...`;
+                        const searchResults = await searchMultiEngine(term, await detectQueryType(userText));
+
+                        if (searchResults.length > 0) {
+                            appendMessage("system", `Found ${searchResults.length} initial search results for "${term}".`);
+                            let urlsProcessedForThisTerm = new Set();
+                            
+                            for (const result of searchResults) {
+                                if (totalSourcesProcessed >= 3) break; 
+                                if (urlsProcessedForThisTerm.has(result.url)) continue; 
+                                
+                                urlsProcessedForThisTerm.add(result.url);
+                                totalSourcesProcessed++; 
+                                
+                                status.textContent = `📄 Extracting precise content from: ${result.title || result.url.substring(0, 50) + '...'}`;
+                                
+                                const extractedText = await fetchAndExtractRelevantText(result.url, userText, keywords);
+                                if (extractedText && extractedText !== 'Information not found in source.') {
+                                    extractedResearchParts.push({ text: extractedText, source: result });
+                                    appendMessage("research", `From "${result.title || result.url.substring(0, 50) + '...'}" (Snippet): ${extractedText}`, [result]);
+                                    sourcesForBotResponse.push(result);
+                                } else {
+                                    console.log(`No precise information found for keywords on ${result.url}`);
+                                }
+                            }
+                        } else {
+                            appendMessage("system", `No relevant search results found for "${term}".`);
+                        }
+                    }
+
+                    status.textContent = "🧠 Generating final response...";
+                    // Construct messages for the final LLM call
+                    const messagesForFinalLLM = [
+                        { 
+                            role: "system", 
+                            content: `You are a helpful and knowledgeable AI assistant. You have been provided with very precise extracted information from web research. Your task is to provide a direct and concise answer to the user's question, using *only* the provided extracted information. If the information does not directly answer the question, state that you cannot find the specific information. Do not add any conversational filler, introductions, or concluding remarks. Just the facts. Cite sources by number at the end of each piece of factual information.` 
+                        },
+                        { role: "user", content: userText } // Original user question as the first user message
+                    ];
+
+                    if (extractedResearchParts.length > 0) {
+                        const combinedResearch = extractedResearchParts.map((rp, index) => `Source ${index + 1}: ${rp.source.title || rp.source.url}\nExtracted Content: ${rp.text}`).join('\n\n---\n\n');
+                        // Add the combined research as a separate user message to provide context
+                        messagesForFinalLLM.push({ 
+                            role: "user", 
+                            content: `Here is the most precise information found from web research to help answer the question:\n\n${combinedResearch}` 
+                        });
+                    } else {
+                        messagesForFinalLLM.push({ 
+                            role: "user", 
+                            content: `No precise, relevant content could be extracted from web research. Please answer based on your general knowledge if possible, or state if you cannot find the specific information.` 
+                        });
+                    }
+
+                    // Call LLM for final answer based on refined data
+                    const chatCompletion = await engine.chat.completions.create({
+                        messages: messagesForFinalLLM, // Use the new temporary array
+                        temperature: 0.1, // Keep very low for factual, non-creative answers
+                        max_tokens: 150, // Strict limit for conciseness
+                        stream: true
+                    });
+
+                    let botMessageDiv = appendMessage("bot", `<div class="loading"></div>`);
+                    let accumulatedText = "";
+                    for await (const chunk of chatCompletion) {
+                        const delta = chunk.choices[0].delta.content;
+                        if (delta) {
+                            accumulatedText += delta;
+                            botMessageDiv.innerHTML = `<strong>Phi‑3:</strong> ${accumulatedText}`;
+                            chatContainer.scrollTop = chatContainer.scrollHeight;
+                        }
+                    }
+                    finalBotResponse = accumulatedText;
+                    
+                    // Append sources to the final bot message if they were used
+                    if (sourcesForBotResponse.length > 0) {
+                         let sourcesHtml = '<div class="research-sources"><strong>Sources:</strong><br>';
+                         sourcesForBotResponse.forEach((source, index) => {
+                            sourcesHtml += `${index + 1}. <a href="${source.url}" target="_blank" rel="noopener noreferrer">${source.title || source.url}</a><br>`;
+                         });
+                         sourcesHtml += '</div>';
+                         botMessageDiv.innerHTML += sourcesHtml;
+                    }
+                    chatHistory.push({ role: "bot", content: finalBotResponse });
+
+                } else {
+                    // If research not needed (based on initialLLMResponse) or toggle is off, directly ask LLM
+                    status.textContent = "🧠 Generating direct response...";
+                    const messages = [
+                        { role: "system", content: "You are a helpful and knowledgeable AI assistant. Answer the user's question directly and concisely based on your existing knowledge. Do not invent information. If you cannot answer, state so." },
+                        { role: "user", content: userText } // Only the user's current query for direct answers
+                    ];
+                    
+                    const chatCompletion = await engine.chat.completions.create({
+                        messages: messages,
+                        temperature: 0.7,
+                        max_tokens: 200,
+                        stream: true
+                    });
+
+                    let botMessageDiv = appendMessage("bot", `<div class="loading"></div>`);
+                    let accumulatedText = "";
+                    for await (const chunk of chatCompletion) {
+                        const delta = chunk.choices[0].delta.content;
+                        if (delta) {
+                            accumulatedText += delta;
+                            botMessageDiv.innerHTML = `<strong>Phi‑3:</strong> ${accumulatedText}`;
+                            chatContainer.scrollTop = chatContainer.scrollHeight;
+                        }
+                    }
+                    finalBotResponse = accumulatedText;
+                    chatHistory.push({ role: "bot", content: finalBotResponse });
+                }
+
+            } catch (error) {
+                console.error("Error during chat or research:", error);
+                appendMessage("system", "An error occurred while processing your request. Please try again.");
+            } finally {
+                sendBtn.disabled = false;
+                input.disabled = false;
+                status.textContent = "Ready";
+            }
+        });
+
+        // Auto-adjust textarea height
+        input.addEventListener("input", () => {
+            input.style.height = "auto";
+            input.style.height = input.scrollHeight + "px";
+        });
+
+        // Enable send button when user types
+        input.addEventListener("keyup", () => {
+            sendBtn.disabled = input.value.trim() === "";
+        });
+
+        // Initialize WebLLM engine
+        async function initializeWebLLM() {
+            status.textContent = "📥 Loading AI model (this may take a moment)...";
+            // Choose a smaller, faster model for client-side use
+            const modelId = "Phi-3-mini-4k-instruct-q4f16_1-MLC"; 
+            const modelConfig = {
+                model: modelId,
+                model_list: [
+                    {
+                        model_url: "https://huggingface.co/mlc-ai/phi-3-mini-4k-instruct-q4f16_1-webgpu/resolve/main/",
+                        model_id: modelId,
+                        model_lib_url: "https://huggingface.co/mlc-ai/phi-3-mini-4k-instruct-q4f16_1-webgpu/resolve/main/phi-3-mini-4k-instruct-q4f16_1-webgpu-043324-cuda.wasm",
+                        vram_required_mb: 2364.04, // Phi-3-mini 4k instruct Q4F16_1
+                        low_power_vram_required_mb: 2548.04,
+                        required_features: ["shader-f16"]
+                    }
+                ],
+                // Specify a default chat config tailored for concise answers and search term generation
+                // to help with the extraction task.
+                // You can add more specific tokenizer/model options here if needed for Phi-3
+                // For example: `tokenizer_files: ['tokenizer.json', 'tokenizer_config.json']`
+            };
+
+            try {
+                engine = await webllm.CreateMLCEngine(
+                    modelConfig.model,
+                    { initProgressCallback: (report) => {
+                        status.textContent = `🔽 ${report.text} (${(report.progress * 100).toFixed(0)}%)`;
+                    }}
+                );
+                status.textContent = "✅ Model loaded! Ready to chat.";
+                sendBtn.disabled = false;
+                input.disabled = false;
+                input.focus(); // Focus on input after initialization
+            } catch (error) {
+                console.error("Failed to load WebLLM engine:", error);
+                status.textContent = "❌ Failed to load AI model. Check console for details.";
+                appendMessage("system", "Failed to load AI model. Please ensure your browser supports WebGPU and try refreshing.");
+            }
+        }
+
+        // Initialize the WebLLM engine when the window loads
+        window.onload = initializeWebLLM;
+
+    </script>
+</body>
+</html>
