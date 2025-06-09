@@ -72,4 +72,5 @@ This project is educational and humanitarian in nature. It does **not** provide 
 
 Adding these as emojies the AI can use for added looks and as an homage to my dog:)
 ![image](https://github.com/user-attachments/assets/596b85e0-a2a5-4d74-8b1e-a2c5f05bfdc2)
+![image](https://github.com/user-attachments/assets/37b619b1-bb06-40b7-ae64-339e243963d5)
 
