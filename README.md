@@ -65,3 +65,7 @@ If you’re interested in contributing or collaborating once this project become
 ## 🛑 Disclaimer
 
 This project is educational and humanitarian in nature. It does **not** provide legal, medical, or financial advice. All content is experimental and subject to change.
+
+## Photo from current development all ran through the browser 100% locally.
+![image](https://github.com/user-attachments/assets/882b0bb1-d6d8-4f73-8142-8a162cf75657)
+
